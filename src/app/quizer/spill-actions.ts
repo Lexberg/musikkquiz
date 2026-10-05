@@ -3,7 +3,6 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireSpillmester } from "@/lib/supabase/server";
-import { normaliserSvar } from "@/lib/tid";
 
 const kodeTegn = "ABCDEFGHJKLMNPQRSTUVWXYZ";
 
@@ -18,22 +17,31 @@ function spillSti(quizId: string, spillId: string) {
 
 export async function startSpill(quizId: string) {
   const supabase = await requireSpillmester();
-  const { data: runder } = await supabase
-    .from("rounds")
-    .select("position, questions(id, position)")
-    .eq("quiz_id", quizId)
-    .order("position")
-    .order("position", { referencedTable: "questions" })
-    .returns<{ questions: { id: string }[] }[]>();
+  const [{ data: quiz }, { data: runder }] = await Promise.all([
+    supabase.from("quizzes").select("time_limit_seconds, speed_bonus").eq("id", quizId).single(),
+    supabase
+      .from("rounds")
+      .select("position, questions(id, position)")
+      .eq("quiz_id", quizId)
+      .order("position")
+      .order("position", { referencedTable: "questions" })
+      .returns<{ questions: { id: string }[] }[]>(),
+  ]);
 
   const questionIds = (runder ?? []).flatMap((r) => r.questions.map((q) => q.id));
-  if (questionIds.length === 0) return;
+  if (!quiz || questionIds.length === 0) return;
 
   // Koden er unik blant aktive spill; prøv på nytt ved kollisjon.
   for (let forsøk = 0; forsøk < 5; forsøk++) {
     const { data, error } = await supabase
       .from("games")
-      .insert({ quiz_id: quizId, code: lagKode(), question_ids: questionIds })
+      .insert({
+        quiz_id: quizId,
+        code: lagKode(),
+        question_ids: questionIds,
+        time_limit_seconds: quiz.time_limit_seconds,
+        speed_bonus: quiz.speed_bonus,
+      })
       .select("id")
       .single();
     if (!error) redirect(spillSti(quizId, data.id));
@@ -42,57 +50,45 @@ export async function startSpill(quizId: string) {
   throw new Error("Fant ingen ledig spillkode");
 }
 
-/** Går til neste spørsmål. `fraIndeks` hindrer dobbeltklikk i å hoppe over et spørsmål. */
+/** Går til neste spørsmål og starter nedtellingen. `fraIndeks` hindrer dobbeltklikk i å hoppe over et spørsmål. */
 export async function nesteSporsmal(quizId: string, spillId: string, fraIndeks: number) {
   const supabase = await requireSpillmester();
-  await supabase
-    .from("games")
-    .update({ status: "question", current_index: fraIndeks + 1 })
-    .eq("id", spillId)
-    .eq("current_index", fraIndeks);
+  await supabase.rpc("host_next_question", { p_game_id: spillId, p_from_index: fraIndeks });
   revalidatePath(spillSti(quizId, spillId));
 }
 
-/** Stopper svar og retter automatisk de som er likt fasiten. */
+/** Låser svarene og retter automatisk (i databasen). */
 export async function lasSvar(quizId: string, spillId: string) {
   const supabase = await requireSpillmester();
-  const { data: spill } = await supabase
-    .from("games")
-    .update({ status: "locked" })
-    .eq("id", spillId)
-    .eq("status", "question")
-    .select("question_ids, current_index")
-    .maybeSingle();
-
-  if (spill) {
-    const questionId = spill.question_ids[spill.current_index];
-    const [{ data: sporsmal }, { data: svar }] = await Promise.all([
-      supabase.from("questions").select("answer, points").eq("id", questionId).single(),
-      supabase
-        .from("answers")
-        .select("id, answer")
-        .eq("game_id", spillId)
-        .eq("question_id", questionId)
-        .is("points", null),
-    ]);
-    if (sporsmal && svar) {
-      const fasit = normaliserSvar(sporsmal.answer);
-      await Promise.all(
-        svar.map((s) =>
-          supabase
-            .from("answers")
-            .update({ points: normaliserSvar(s.answer) === fasit ? sporsmal.points : 0 })
-            .eq("id", s.id),
-        ),
-      );
-    }
-  }
+  await supabase.rpc("host_lock_question", { p_game_id: spillId });
   revalidatePath(spillSti(quizId, spillId));
 }
 
-export async function settPoeng(quizId: string, spillId: string, svarId: string, poeng: number) {
+/** Kalles når nedtellingen er ute på spillmesterens side. */
+export async function lasHvisUtlopt(quizId: string, spillId: string) {
   const supabase = await requireSpillmester();
-  await supabase.from("answers").update({ points: poeng }).eq("id", svarId);
+  await supabase.rpc("host_lock_if_expired", { p_game_id: spillId });
+  revalidatePath(spillSti(quizId, spillId));
+}
+
+/** Setter poeng for ett svarfelt i et svar. Hurtighetspoeng regnes ut på nytt i databasen. */
+export async function settPoeng(
+  quizId: string,
+  spillId: string,
+  svarId: string,
+  feltIndeks: number,
+  poeng: number,
+) {
+  const supabase = await requireSpillmester();
+  const { data: svar } = await supabase
+    .from("answers")
+    .select("answer_values, part_points")
+    .eq("id", svarId)
+    .single<{ answer_values: string[]; part_points: number[] | null }>();
+  if (!svar) return;
+  const nye = svar.part_points ?? svar.answer_values.map(() => 0);
+  nye[feltIndeks] = poeng;
+  await supabase.from("answers").update({ part_points: nye }).eq("id", svarId);
   revalidatePath(spillSti(quizId, spillId));
 }
 

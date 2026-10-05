@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { svarfeltListe } from "./svarfelt";
 
 /** Et AI-generert quizutkast slik det vises og lagres. */
 export const utkastSkjema = z.object({
@@ -11,8 +12,7 @@ export const utkastSkjema = z.object({
           .array(
             z.object({
               prompt: z.string().trim().min(1).max(500),
-              answer: z.string().trim().min(1).max(500),
-              points: z.number().int().min(0).max(100),
+              parts: svarfeltListe,
               tittel: z.string().max(200),
               artist: z.string().max(200),
               trackId: z.string().regex(/^[A-Za-z0-9]{22}$/).nullable(),

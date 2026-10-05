@@ -6,6 +6,7 @@ import { AvspillKnapp } from "@/components/spotify/avspill-knapp";
 import { useSpotify } from "@/components/spotify/spotify-provider";
 import { avsnitt, type Utkast } from "@/lib/ai-utkast";
 import { finnLat, hentSpilleliste, spillelisteId } from "@/lib/spotify/api";
+import { fasitTekst, poengSum } from "@/lib/svarfelt";
 import { msTilTid } from "@/lib/tid";
 import { genererQuiz, lagreAiQuiz, type GenererInput } from "./actions";
 
@@ -72,8 +73,7 @@ export function AiGenerator() {
           tittel: r.tittel,
           sporsmal: r.sporsmal.map((s) => ({
             prompt: s.prompt,
-            answer: s.answer,
-            points: Math.min(Math.max(s.points, 0), 100),
+            parts: s.parts,
             tittel: s.tittel,
             artist: s.artist,
             trackId: s.trackId,
@@ -157,7 +157,8 @@ export function AiGenerator() {
                     <div className="flex flex-1 flex-col">
                       <span className="font-medium">{s.prompt}</span>
                       <span className="text-sm text-zinc-500">
-                        Fasit: {s.answer} · {s.points} p
+                        Fasit: {fasitTekst(s.parts)} · {poengSum(s.parts)} p
+                        {s.parts.some((p) => p.choices) && " · flervalg"}
                       </span>
                       <span className={`text-sm ${s.trackId ? "text-zinc-500" : "text-amber-600"}`}>
                         {s.trackId ? "🎵" : "⚠ Fant ikke på Spotify:"} {s.tittel} – {s.artist}

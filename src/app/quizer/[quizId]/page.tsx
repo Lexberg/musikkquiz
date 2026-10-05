@@ -4,7 +4,9 @@ import { requireSpillmester } from "@/lib/supabase/server";
 import { msTilTid } from "@/lib/tid";
 import type { Quiz, Runde, Spill, Sporsmal } from "@/lib/typer";
 import { Felt, Knapp } from "@/components/skjema";
+import { fasitTekst, poengSum } from "@/lib/svarfelt";
 import {
+  endreInnstillinger,
   endreQuiz,
   endreRunde,
   flyttRunde,
@@ -23,7 +25,7 @@ export default async function QuizPage({ params }: PageProps<"/quizer/[quizId]">
 
   const { data: quiz } = await supabase
     .from("quizzes")
-    .select("id, title, created_at")
+    .select("id, title, created_at, time_limit_seconds, speed_bonus")
     .eq("id", quizId)
     .maybeSingle<Quiz>();
   if (!quiz) notFound();
@@ -62,6 +64,26 @@ export default async function QuizPage({ params }: PageProps<"/quizer/[quizId]">
       </div>
 
       <section className="flex flex-col gap-3 rounded-lg bg-violet-50 p-4 dark:bg-violet-950/40">
+        <form action={endreInnstillinger.bind(null, quizId)} className="flex flex-wrap items-end gap-4">
+          <Felt
+            label="Nedtelling per spørsmål (sek)"
+            name="tid"
+            type="number"
+            min={5}
+            max={600}
+            defaultValue={quiz.time_limit_seconds ?? ""}
+            placeholder="Av"
+            className="w-48"
+          />
+          <label className="flex items-center gap-2 pb-2 text-sm">
+            <input type="checkbox" name="hurtighet" defaultChecked={quiz.speed_bonus} />
+            Hurtighetspoeng (+3/+2/+1 til de raskeste med alt riktig)
+          </label>
+          <Knapp variant="sekundær">Lagre innstillinger</Knapp>
+        </form>
+        <p className="text-xs text-zinc-500">
+          Spørsmålet låses når du trykker «Lås svar», når alle lag har låst, eller når nedtellingen er ute.
+        </p>
         <form action={startSpill.bind(null, quizId)} className="flex flex-wrap items-center gap-3">
           <Knapp disabled={antallSporsmal === 0}>▶ Start live-quiz</Knapp>
           <span className="text-sm text-zinc-500">
@@ -110,7 +132,7 @@ export default async function QuizPage({ params }: PageProps<"/quizer/[quizId]">
                   <Link href={`/quizer/${quizId}/sporsmal/${s.id}`} className="flex flex-1 flex-col hover:underline">
                     <span className="font-medium">{s.prompt}</span>
                     <span className="text-sm text-zinc-500">
-                      Fasit: {s.answer} · {s.points} p ·{" "}
+                      Fasit: {fasitTekst(s.parts)} · {poengSum(s.parts)} p ·{" "}
                       {s.spotify_track_id
                         ? `${s.track_title ?? "Låt"}${s.track_artist ? ` – ${s.track_artist}` : ""} (${msTilTid(s.start_ms)}–${msTilTid(s.end_ms)})`
                         : "ingen låt valgt"}

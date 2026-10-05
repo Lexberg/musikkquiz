@@ -6,24 +6,45 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireSpillmester } from "@/lib/supabase/server";
 import { utkastSkjema, type Utkast } from "@/lib/ai-utkast";
+import { lagAlternativer, type Svarfelt } from "@/lib/svarfelt";
 
 const system = `Du lager musikkquizer for venner og familie i Norge.
 
-Slik brukes quizen: For hvert spørsmål spiller spillmesteren et avsnitt av én låt, og deltakerne ser bare spørsmålsteksten på mobilen og skriver svaret. Spillmesteren ser fasiten og retter.
+Slik brukes quizen: For hvert spørsmål spiller spillmesteren et avsnitt av én låt. Deltakerne ser bare spørsmålsteksten og navnet på hvert svarfelt på mobilen, og svarer så raskt de kan. Spillmesteren ser fasiten og retter.
 
 - Spørsmålet skal kunne besvares ved å høre låten, eller handle om låten eller artisten: artist, tittel, utgivelsesår, filmen eller serien låten var med i, hvilket land artisten kommer fra og lignende. Varier spørsmålstypene.
 - Spørsmålsteksten må aldri avsløre svaret. Spør du etter artisten, ikke nevn artisten; spør du etter tittelen, ikke nevn tittelen.
+- Et spørsmål har 1–3 svarfelt (parts), hvert med kort navn (label) og egen fasit. Bruk ofte to felt, typisk «Artist» og «Låt», ellers ett felt som «Svar» eller «År».
 - Fasiten skal være kort (et navn, en tittel eller et tall), fordi svar som er like fasiten rettes automatisk.
-- Gi 1 poeng for vanlige spørsmål og 2 for vanskelige.
+- Et svarfelt kan være flervalg: legg da tre plausible, men feile alternativer i wrong_choices. Bruk flervalg på omtrent hvert tredje spørsmål, særlig for årstall og vanskelige felt. For fritekst er wrong_choices en tom liste.
+- Gi 1 poeng per svarfelt, 2 for vanskelige.
 - start_seconds er ditt beste anslag på hvor det mest gjenkjennelige partiet starter, ofte første refreng.
 - Skriv spørsmål, fasit og rundenavn på norsk bokmål. Låttitler og artistnavn skrives som på Spotify.`;
 
 const sporsmalFelt = {
   prompt: z.string().describe("Spørsmålet deltakerne ser, uten å avsløre svaret"),
-  answer: z.string().describe("Kort fasit"),
-  points: z.number().int(),
+  parts: z.array(
+    z.object({
+      label: z.string().describe("Kort navn på svarfeltet, f.eks. Artist, Låt eller År"),
+      answer: z.string().describe("Kort fasit"),
+      points: z.number().int(),
+      wrong_choices: z.array(z.string()).describe("Tre feile alternativer for flervalg, eller tom liste for fritekst"),
+    }),
+  ),
   start_seconds: z.number(),
 };
+
+type AiFelt = { label: string; answer: string; points: number; wrong_choices: string[] };
+
+/** Gjør AI-ens svarfelt om til lagringsformatet; flervalg får stokkede alternativer. */
+function tilSvarfelt(parts: AiFelt[]): Svarfelt[] {
+  return parts.slice(0, 3).map((p) => ({
+    label: p.label.trim().slice(0, 40) || "Svar",
+    answer: p.answer.trim().slice(0, 200),
+    points: Math.min(Math.max(Math.round(p.points), 0), 100),
+    choices: p.wrong_choices.length ? lagAlternativer(p.answer.trim(), p.wrong_choices.slice(0, 5).map((c) => c.trim())) : undefined,
+  }));
+}
 
 const temaSvar = z.object({
   title: z.string(),
@@ -67,8 +88,7 @@ export type GenererInput = {
 /** Spørsmål før låten er funnet på Spotify; klienten fyller inn trackId og avsnitt. */
 export type RaattSporsmal = {
   prompt: string;
-  answer: string;
-  points: number;
+  parts: Svarfelt[];
   tittel: string;
   artist: string;
   startSek: number;
@@ -127,8 +147,7 @@ export async function genererQuiz(input: GenererInput): Promise<GenererSvar> {
         tittel: r.title,
         sporsmal: r.questions.map((q) => ({
           prompt: q.prompt,
-          answer: q.answer,
-          points: q.points,
+          parts: tilSvarfelt(q.parts),
           tittel: q.song_title,
           artist: q.song_artist,
           startSek: q.start_seconds,
@@ -161,8 +180,7 @@ export async function genererQuiz(input: GenererInput): Promise<GenererSvar> {
         return [
           {
             prompt: q.prompt,
-            answer: q.answer,
-            points: q.points,
+            parts: tilSvarfelt(q.parts),
             tittel: lat.tittel,
             artist: lat.artist,
             startSek: q.start_seconds,
@@ -200,8 +218,7 @@ export async function lagreAiQuiz(utkast: Utkast): Promise<string> {
             round_id: rad!.id,
             position: j + 1,
             prompt: s.prompt,
-            answer: s.answer,
-            points: s.points,
+            parts: s.parts,
             spotify_track_id: s.trackId,
             track_title: s.tittel || null,
             track_artist: s.artist || null,

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireSpillmester } from "@/lib/supabase/server";
+import { lagAlternativer, svarfeltListe } from "@/lib/svarfelt";
 import { spotifyTrackId, tidTilMs } from "@/lib/tid";
 
 type Supabase = Awaited<ReturnType<typeof requireSpillmester>>;
@@ -80,6 +81,19 @@ export async function endreQuiz(quizId: string, formData: FormData) {
   revalidatePath(`/quizer/${quizId}`);
 }
 
+export async function endreInnstillinger(quizId: string, formData: FormData) {
+  const tid = Number(formData.get("tid"));
+  const supabase = await requireSpillmester();
+  await supabase
+    .from("quizzes")
+    .update({
+      time_limit_seconds: tid >= 5 ? Math.min(Math.round(tid), 600) : null,
+      speed_bonus: formData.get("hurtighet") === "on",
+    })
+    .eq("id", quizId);
+  revalidatePath(`/quizer/${quizId}`);
+}
+
 export async function slettQuiz(quizId: string) {
   const supabase = await requireSpillmester();
   await supabase.from("quizzes").delete().eq("id", quizId);
@@ -121,14 +135,36 @@ export async function flyttRunde(quizId: string, rundeId: string, retning: "opp"
 // Spørsmål
 
 export type SporsmalFeil = Partial<
-  Record<"prompt" | "answer" | "points" | "spotify" | "start" | "slutt" | "generelt", string>
+  Record<"prompt" | "parts" | "spotify" | "start" | "slutt" | "generelt", string>
 >;
 
 const sporsmalSkjema = z
   .object({
     prompt: z.string().trim().min(1, "Skriv et spørsmål").max(500),
-    answer: z.string().trim().min(1, "Skriv fasiten").max(500),
-    points: z.coerce.number().int("Hele poeng").min(0).max(100),
+    parts: z
+      .string()
+      .transform((tekst, ctx) => {
+        // Skjemaet sender [{label, answer, points, flervalg, feil: [...]}]; flervalg blir til stokkede alternativer.
+        let rå: { label: string; answer: string; points: number; flervalg: boolean; feil: string[] }[];
+        try {
+          rå = JSON.parse(tekst);
+        } catch {
+          rå = [];
+        }
+        const parts = svarfeltListe.safeParse(
+          rå.map((p) => ({
+            label: p.label,
+            answer: p.answer,
+            points: Number(p.points),
+            choices: p.flervalg ? lagAlternativer(p.answer.trim(), p.feil.map((f) => f.trim())) : undefined,
+          })),
+        );
+        if (!parts.success) {
+          ctx.addIssue({ code: "custom", message: parts.error.issues[0]?.message ?? "Ugyldige svarfelt" });
+          return z.NEVER;
+        }
+        return parts.data;
+      }),
     spotify: z
       .string()
       .trim()
@@ -166,8 +202,7 @@ export async function lagreSporsmal(
 ): Promise<SporsmalFeil | null> {
   const felt = sporsmalSkjema.safeParse({
     prompt: formData.get("prompt") ?? "",
-    answer: formData.get("answer") ?? "",
-    points: formData.get("points") ?? "1",
+    parts: formData.get("parts") ?? "[]",
     spotify: formData.get("spotify") ?? "",
     track_title: formData.get("track_title") ?? "",
     track_artist: formData.get("track_artist") ?? "",
@@ -186,8 +221,7 @@ export async function lagreSporsmal(
   const v = felt.data;
   const rad = {
     prompt: v.prompt,
-    answer: v.answer,
-    points: v.points,
+    parts: v.parts,
     spotify_track_id: v.spotify,
     track_title: v.track_title,
     track_artist: v.track_artist,

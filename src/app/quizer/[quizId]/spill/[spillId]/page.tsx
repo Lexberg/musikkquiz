@@ -5,15 +5,18 @@ import { requireSpillmester } from "@/lib/supabase/server";
 import { msTilTid } from "@/lib/tid";
 import type { Lag, Spill, Sporsmal, Svar } from "@/lib/typer";
 import { Knapp } from "@/components/skjema";
+import { fasitTekst, poengSum } from "@/lib/svarfelt";
 import {
   avsluttSpill,
   fjernLag,
+  lasHvisUtlopt,
   lasSvar,
   nesteSporsmal,
   settPoeng,
 } from "@/app/quizer/spill-actions";
 import { AvspillKnapp } from "@/components/spotify/avspill-knapp";
 import { LiveOppdatering } from "./live-oppdatering";
+import { Nedtelling } from "@/components/nedtelling";
 
 export default async function SpillPage({ params }: PageProps<"/quizer/[quizId]/spill/[spillId]">) {
   const { quizId, spillId } = await params;
@@ -48,7 +51,9 @@ export default async function SpillPage({ params }: PageProps<"/quizer/[quizId]/
   const poengtavle = alleLag
     .map((l) => ({
       ...l,
-      poeng: alleSvar.filter((s) => s.team_id === l.id).reduce((n, s) => n + (s.points ?? 0), 0),
+      poeng: alleSvar
+        .filter((s) => s.team_id === l.id)
+        .reduce((n, s) => n + s.points + s.speed_bonus, 0),
     }))
     .sort((a, b) => b.poeng - a.poeng || a.name.localeCompare(b.name, "nb"));
 
@@ -60,6 +65,13 @@ export default async function SpillPage({ params }: PageProps<"/quizer/[quizId]/
   const vert = h.get("x-forwarded-host") ?? h.get("host");
   const protokoll = h.get("x-forwarded-proto") ?? "https";
   const bliMedUrl = `${protokoll}://${vert}`;
+
+  // Lagene som har låst, i rekkefølgen de låste; deretter de som ikke har svart.
+  const rekkefølge = [...svarNå.values()].sort((a, b) => a.submitted_at.localeCompare(b.submitted_at));
+  const lagRader = [
+    ...rekkefølge.map((s) => ({ lag: alleLag.find((l) => l.id === s.team_id)!, svar: s })),
+    ...alleLag.filter((l) => !svarNå.has(l.id)).map((l) => ({ lag: l, svar: undefined })),
+  ].filter((r) => r.lag);
 
   const neste = nesteSporsmal.bind(null, quizId, spillId, spill.current_index);
   const avslutt = avsluttSpill.bind(null, quizId, spillId);
@@ -94,16 +106,25 @@ export default async function SpillPage({ params }: PageProps<"/quizer/[quizId]/
 
       {(spill.status === "question" || spill.status === "locked") && (
         <section className="flex flex-col gap-4">
-          <p className="text-sm text-zinc-500">
-            Spørsmål {nr} av {totalt}
-            {sporsmal?.rounds && ` · ${sporsmal.rounds.title}`}
-          </p>
+          <div className="flex items-center justify-between gap-4">
+            <p className="text-sm text-zinc-500">
+              Spørsmål {nr} av {totalt}
+              {sporsmal?.rounds && ` · ${sporsmal.rounds.title}`}
+            </p>
+            {spill.status === "question" && spill.question_deadline && (
+              <Nedtelling
+                key={spill.question_deadline}
+                tid={{ frist: spill.question_deadline }}
+                vedNull={lasHvisUtlopt.bind(null, quizId, spillId)}
+              />
+            )}
+          </div>
           {sporsmal ? (
             <>
               <h2 className="text-2xl font-bold">{sporsmal.prompt}</h2>
               <div className="flex flex-col gap-1 rounded-lg bg-zinc-100 px-4 py-3 text-sm dark:bg-zinc-900">
                 <span>
-                  <strong>Fasit:</strong> {sporsmal.answer} ({sporsmal.points} p)
+                  <strong>Fasit:</strong> {fasitTekst(sporsmal.parts)} ({poengSum(sporsmal.parts)} p)
                 </span>
                 {sporsmal.spotify_track_id ? (
                   <>
@@ -140,45 +161,71 @@ export default async function SpillPage({ params }: PageProps<"/quizer/[quizId]/
           )}
 
           <ul className="divide-y divide-zinc-200 rounded-lg border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
-            {alleLag.map((l) => {
-              const s = svarNå.get(l.id);
-              return (
-                <li key={l.id} className="flex flex-wrap items-center gap-3 px-4 py-2">
-                  <span className="w-32 font-medium">{l.name}</span>
-                  <span className={`flex-1 ${s ? "" : "text-zinc-400"}`}>
-                    {s ? s.answer : spill.status === "question" ? "venter …" : "svarte ikke"}
+            {lagRader.map(({ lag: l, svar: s }, plass) => (
+              <li key={l.id} className="flex flex-col gap-2 px-4 py-3">
+                <div className="flex items-center gap-3">
+                  <span className="flex-1 font-medium">
+                    {s && <span className="mr-2 text-sm text-zinc-500">{plass + 1}.</span>}
+                    {l.name}
                   </span>
-                  {spill.status === "locked" && s && sporsmal && (
-                    <form className="flex gap-1">
-                      <Knapp
-                        variant={s.points ? "primær" : "sekundær"}
-                        formAction={settPoeng.bind(null, quizId, spillId, s.id, sporsmal.points)}
-                      >
-                        ✓ Riktig
-                      </Knapp>
-                      <Knapp
-                        variant={s.points === 0 ? "primær" : "sekundær"}
-                        formAction={settPoeng.bind(null, quizId, spillId, s.id, 0)}
-                      >
-                        ✗ Feil
-                      </Knapp>
-                    </form>
+                  {s ? (
+                    s.speed_bonus > 0 && (
+                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                        ⚡ +{s.speed_bonus}
+                      </span>
+                    )
+                  ) : (
+                    <span className="text-sm text-zinc-400">
+                      {spill.status === "question" ? "venter …" : "svarte ikke"}
+                    </span>
                   )}
-                </li>
-              );
-            })}
+                </div>
+                {s &&
+                  s.answer_values.map((verdi, i) => {
+                    const felt = sporsmal?.parts[i];
+                    const poeng = s.part_points?.[i];
+                    return (
+                      <div key={i} className="flex flex-wrap items-center gap-2 pl-6 text-sm">
+                        {sporsmal && sporsmal.parts.length > 1 && (
+                          <span className="w-20 text-zinc-500">{felt?.label}</span>
+                        )}
+                        <span className="flex-1">{verdi}</span>
+                        {spill.status === "locked" && felt && (
+                          <form className="flex gap-1">
+                            <Knapp
+                              variant={poeng ? "primær" : "sekundær"}
+                              formAction={settPoeng.bind(null, quizId, spillId, s.id, i, felt.points)}
+                              aria-label={`${felt.label} riktig`}
+                            >
+                              ✓
+                            </Knapp>
+                            <Knapp
+                              variant={poeng === 0 ? "primær" : "sekundær"}
+                              formAction={settPoeng.bind(null, quizId, spillId, s.id, i, 0)}
+                              aria-label={`${felt.label} feil`}
+                            >
+                              ✗
+                            </Knapp>
+                          </form>
+                        )}
+                      </div>
+                    );
+                  })}
+              </li>
+            ))}
           </ul>
 
           {spill.status === "question" ? (
             <form action={lasSvar.bind(null, quizId, spillId)}>
               <Knapp>
-                Lås svar ({svarNå.size} av {alleLag.length} har svart)
+                Lås svar nå ({svarNå.size} av {alleLag.length} lag har låst)
               </Knapp>
             </form>
           ) : (
             <div className="flex flex-col gap-2">
               <p className="text-sm text-zinc-500">
-                Svar som er likt fasiten er rettet automatisk. Juster om nødvendig.
+                Svar som er like fasiten er rettet automatisk. Juster med ✓/✗ om nødvendig.
+                {spill.speed_bonus && " ⚡ Hurtighetspoeng går til de raskeste med alt riktig."}
               </p>
               <form action={sisteSporsmal ? avslutt : neste}>
                 <Knapp>{sisteSporsmal ? "Avslutt og vis resultat" : "Neste spørsmål"}</Knapp>

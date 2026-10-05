@@ -8,6 +8,7 @@ import { LatSok, type ValgtLat } from "@/components/spotify/lat-sok";
 import { msTilTid, spotifyTrackId, tidTilMs } from "@/lib/tid";
 import type { Sporsmal } from "@/lib/typer";
 import type { SporsmalFeil } from "../actions";
+import { SvarfeltEditor } from "./svarfelt-editor";
 
 type Props = {
   quizId: string;
@@ -55,18 +56,13 @@ export function SporsmalSkjema({ quizId, sporsmal, lagre }: Props) {
 
       <fieldset className="flex flex-col gap-4">
         <legend className="mb-2 text-sm font-semibold uppercase tracking-wide text-zinc-500">
-          Bare for spillmesteren
+          Svar og fasit
         </legend>
-        <div className="flex gap-4">
-          <div className="flex flex-1 flex-col">
-            <Felt label="Fasit" name="answer" defaultValue={sporsmal?.answer} required />
-            <Feilmelding tekst={feil?.answer} />
-          </div>
-          <div className="flex w-24 flex-col">
-            <Felt label="Poeng" name="points" type="number" min={0} max={100} defaultValue={sporsmal?.points ?? 1} />
-            <Feilmelding tekst={feil?.points} />
-          </div>
-        </div>
+        <p className="-mt-2 text-sm text-zinc-500">
+          Deltakerne ser navnet på hvert svarfelt (f.eks. «Artist» og «Låt»), aldri fasiten.
+        </p>
+        <SvarfeltEditor start={sporsmal?.parts} />
+        <Feilmelding tekst={feil?.parts} />
       </fieldset>
 
       <fieldset className="flex flex-col gap-4">

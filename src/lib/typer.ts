@@ -1,7 +1,12 @@
+import type { Svarfelt } from "./svarfelt";
+
 export type Quiz = {
   id: string;
   title: string;
   created_at: string;
+  /** Nedtelling per spørsmål; null = ingen. */
+  time_limit_seconds: number | null;
+  speed_bonus: boolean;
 };
 
 export type Runde = {
@@ -16,8 +21,7 @@ export type Sporsmal = {
   round_id: string;
   position: number;
   prompt: string;
-  answer: string;
-  points: number;
+  parts: Svarfelt[];
   spotify_track_id: string | null;
   track_title: string | null;
   track_artist: string | null;
@@ -34,6 +38,9 @@ export type Spill = {
   status: SpillStatus;
   question_ids: string[];
   current_index: number;
+  time_limit_seconds: number | null;
+  speed_bonus: boolean;
+  question_deadline: string | null;
   created_at: string;
 };
 
@@ -48,8 +55,13 @@ export type Svar = {
   id: string;
   team_id: string;
   question_id: string;
-  answer: string;
-  points: number | null;
+  /** Én verdi per svarfelt. */
+  answer_values: string[];
+  /** Poeng per svarfelt; null = ikke rettet ennå. */
+  part_points: number[] | null;
+  points: number;
+  speed_bonus: number;
+  submitted_at: string;
 };
 
 /** Det deltakerne får fra game_state(). Inneholder aldri fasit eller låt. */
@@ -59,8 +71,13 @@ export type Deltakertilstand = {
   team_name: string;
   number: number;
   total: number;
+  speed_bonus: boolean;
   prompt?: string;
   round_title?: string;
-  my_answer?: string | null;
+  parts?: { label: string; choices?: string[] }[];
+  my_answer?: string[] | null;
+  answered?: number;
+  teams?: number;
+  seconds_left?: number | null;
   scoreboard?: { name: string; points: number }[];
 };
