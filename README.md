@@ -34,6 +34,21 @@ Deltakerne blir med på mobilen med en spillkode og svarer på spørsmålene.
 5. **Authentication -> Sign In / Providers**: slå av «Allow new users to sign up», så ingen
    andre kan lage konto. Deltakerne trenger ikke konto.
 
+## Spotify-oppsett
+
+Spillmesteren spiller av låtene direkte i nettleseren (Chrome, Edge eller Firefox på PC/Mac)
+og må ha Spotify Premium.
+
+1. Gå til [developer.spotify.com/dashboard](https://developer.spotify.com/dashboard) og
+   **Create app**. Huk av for **Web API** og **Web Playback SDK**.
+2. Under **Redirect URIs** legger du inn adressen appen kjører på + `/spotify/callback`, f.eks.
+   `https://<codespace>-3000.app.github.dev/spotify/callback` og
+   `https://<prosjekt>.vercel.app/spotify/callback`.
+3. Under **User Management** legger du til e-posten til Spotify-kontoen som skal spille av
+   (nødvendig mens appen er i «Development mode»).
+4. Kopier **Client ID** til `.env.local` (og Vercel) som `NEXT_PUBLIC_SPOTIFY_CLIENT_ID`,
+   og start `npm run dev` på nytt.
+
 ## Publisering (Vercel)
 
 1. På [vercel.com](https://vercel.com): **Add New -> Project** og importer GitHub-repoet.

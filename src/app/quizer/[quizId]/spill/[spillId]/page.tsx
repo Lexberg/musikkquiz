@@ -12,6 +12,7 @@ import {
   nesteSporsmal,
   settPoeng,
 } from "@/app/quizer/spill-actions";
+import { AvspillKnapp } from "@/components/spotify/avspill-knapp";
 import { LiveOppdatering } from "./live-oppdatering";
 
 export default async function SpillPage({ params }: PageProps<"/quizer/[quizId]/spill/[spillId]">) {
@@ -105,19 +106,30 @@ export default async function SpillPage({ params }: PageProps<"/quizer/[quizId]/
                   <strong>Fasit:</strong> {sporsmal.answer} ({sporsmal.points} p)
                 </span>
                 {sporsmal.spotify_track_id ? (
-                  <span>
-                    <strong>Spill:</strong>{" "}
-                    <a
-                      href={`https://open.spotify.com/track/${sporsmal.spotify_track_id}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-violet-600 hover:underline"
-                    >
-                      {sporsmal.track_title ?? "Åpne i Spotify"}
-                      {sporsmal.track_artist && ` – ${sporsmal.track_artist}`}
-                    </a>{" "}
-                    fra {msTilTid(sporsmal.start_ms)} til {msTilTid(sporsmal.end_ms)}
-                  </span>
+                  <>
+                    <span>
+                      <strong>Låt:</strong>{" "}
+                      <a
+                        href={`https://open.spotify.com/track/${sporsmal.spotify_track_id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-violet-600 hover:underline"
+                      >
+                        {sporsmal.track_title ?? "Åpne i Spotify"}
+                        {sporsmal.track_artist && ` – ${sporsmal.track_artist}`}
+                      </a>{" "}
+                      fra {msTilTid(sporsmal.start_ms)} til {msTilTid(sporsmal.end_ms)}
+                    </span>
+                    <div className="mt-2">
+                      <AvspillKnapp
+                        avsnitt={{
+                          trackId: sporsmal.spotify_track_id,
+                          startMs: sporsmal.start_ms,
+                          endMs: sporsmal.end_ms,
+                        }}
+                      />
+                    </div>
+                  </>
                 ) : (
                   <span className="text-zinc-500">Ingen låt valgt for dette spørsmålet.</span>
                 )}

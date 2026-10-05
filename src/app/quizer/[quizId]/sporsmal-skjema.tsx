@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState } from "react";
+import { useActionState, useRef } from "react";
 import { Felt, Knapp } from "@/components/skjema";
-import { msTilTid } from "@/lib/tid";
+import { AvspillKnapp } from "@/components/spotify/avspill-knapp";
+import { msTilTid, spotifyTrackId, tidTilMs } from "@/lib/tid";
 import type { Sporsmal } from "@/lib/typer";
 import type { SporsmalFeil } from "../actions";
 
@@ -15,9 +16,25 @@ type Props = {
 
 export function SporsmalSkjema({ quizId, sporsmal, lagre }: Props) {
   const [feil, action, venter] = useActionState(lagre, null);
+  const skjema = useRef<HTMLFormElement>(null);
+
+  // Leser låt og avsnitt fra feltene slik de står nå, også før lagring.
+  function avsnittFraSkjema() {
+    const data = new FormData(skjema.current!);
+    const trackId = spotifyTrackId(String(data.get("spotify") ?? ""));
+    if (!trackId) return "Lim inn en gyldig Spotify-lenke først.";
+    const start = String(data.get("start") ?? "").trim();
+    const slutt = String(data.get("slutt") ?? "").trim();
+    const startMs = start ? tidTilMs(start) : 0;
+    if (startMs === null) return "Ugyldig starttid. Bruk m:ss, f.eks. 1:05.";
+    const endMs = slutt ? tidTilMs(slutt) : startMs + 30_000;
+    if (endMs === null) return "Ugyldig sluttid. Bruk m:ss, f.eks. 1:35.";
+    if (endMs <= startMs) return "Slutt må være etter start.";
+    return { trackId, startMs, endMs };
+  }
 
   return (
-    <form action={action} className="flex flex-col gap-6">
+    <form ref={skjema} action={action} className="flex flex-col gap-6">
       <fieldset className="flex flex-col gap-4">
         <legend className="mb-2 text-sm font-semibold uppercase tracking-wide text-zinc-500">
           Det deltakerne ser
@@ -52,7 +69,7 @@ export function SporsmalSkjema({ quizId, sporsmal, lagre }: Props) {
             name="spotify"
             defaultValue={sporsmal?.spotify_track_id ? `https://open.spotify.com/track/${sporsmal.spotify_track_id}` : ""}
             placeholder="https://open.spotify.com/track/…"
-            hjelp="Spotify-appen: Del → Kopier lenke til låt. Søk direkte kommer i fase 4."
+            hjelp="Spotify-appen: Del → Kopier lenke til låt."
           />
           <Feilmelding tekst={feil?.spotify} />
         </div>
@@ -77,6 +94,7 @@ export function SporsmalSkjema({ quizId, sporsmal, lagre }: Props) {
             <Feilmelding tekst={feil?.slutt} />
           </div>
         </div>
+        <AvspillKnapp avsnitt={avsnittFraSkjema} tekst="▶ Test avsnitt" />
       </fieldset>
 
       <Feilmelding tekst={feil?.generelt} />

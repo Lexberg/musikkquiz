@@ -1,0 +1,201 @@
+"use client";
+
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
+import {
+  abonnerPåToken,
+  harSpotifyToken,
+  loggInnSpotify,
+  loggUtSpotify,
+  spotifyClientId,
+  spotifyToken,
+} from "@/lib/spotify/auth";
+
+export type SpotifyStatus = "mangler-oppsett" | "utlogget" | "kobler" | "klar" | "feil";
+
+export type Avspilling = {
+  trackId: string;
+  startMs: number;
+  endMs: number;
+  posisjonMs: number;
+};
+
+type SpotifyKontekst = {
+  status: SpotifyStatus;
+  feil: string | null;
+  avspilling: Avspilling | null;
+  loggInn: () => void;
+  loggUt: () => void;
+  spill: (trackId: string, startMs: number, endMs: number) => Promise<void>;
+  stopp: () => void;
+};
+
+const Kontekst = createContext<SpotifyKontekst | null>(null);
+
+export function useSpotify() {
+  const verdi = useContext(Kontekst);
+  if (!verdi) throw new Error("useSpotify må brukes inne i <SpotifyProvider>");
+  return verdi;
+}
+
+let sdkLastes: Promise<void> | null = null;
+
+function lastSdk() {
+  sdkLastes ??= new Promise<void>((resolve) => {
+    if (window.Spotify) return resolve();
+    window.onSpotifyWebPlaybackSDKReady = () => resolve();
+    const script = document.createElement("script");
+    script.src = "https://sdk.scdn.co/spotify-player.js";
+    script.async = true;
+    document.body.appendChild(script);
+  });
+  return sdkLastes;
+}
+
+export function SpotifyProvider({ children }: { children: React.ReactNode }) {
+  const innlogget = useSyncExternalStore(abonnerPåToken, harSpotifyToken, () => false);
+  const [spillerStatus, setSpillerStatus] = useState<"kobler" | "klar" | "feil">("kobler");
+  const [feil, setFeil] = useState<string | null>(null);
+  const [avspilling, setAvspilling] = useState<Avspilling | null>(null);
+
+  const spiller = useRef<Spotify.Player | null>(null);
+  const enhetId = useRef<string | null>(null);
+  const overvåker = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const status: SpotifyStatus = !spotifyClientId
+    ? "mangler-oppsett"
+    : !innlogget
+      ? "utlogget"
+      : spillerStatus;
+
+  const stoppOvervåking = useCallback(() => {
+    if (overvåker.current) clearInterval(overvåker.current);
+    overvåker.current = null;
+  }, []);
+
+  useEffect(() => {
+    if (!innlogget || !spotifyClientId) return;
+    let avbrutt = false;
+
+    lastSdk().then(() => {
+      if (avbrutt || !window.Spotify) return;
+      const p = new window.Spotify.Player({
+        name: "Musikkquiz",
+        volume: 0.8,
+        getOAuthToken: (cb) => {
+          spotifyToken().then((t) => t && cb(t));
+        },
+      });
+      const feilet = (melding: string) => {
+        setFeil(melding);
+        setSpillerStatus("feil");
+      };
+      p.addListener("ready", ({ device_id }) => {
+        enhetId.current = device_id;
+        setFeil(null);
+        setSpillerStatus("klar");
+      });
+      p.addListener("not_ready", () => {
+        enhetId.current = null;
+        setSpillerStatus("kobler");
+      });
+      p.addListener("account_error", () => feilet("Spotify Premium kreves for å spille av."));
+      p.addListener("initialization_error", () =>
+        feilet("Nettleseren støtter ikke Spotify-spilleren. Bruk Chrome, Edge eller Firefox på PC/Mac."),
+      );
+      p.addListener("authentication_error", () => {
+        loggUtSpotify();
+        setFeil("Spotify-innloggingen er utløpt. Koble til på nytt.");
+      });
+      p.addListener("playback_error", (e) => setFeil(`Avspilling feilet: ${e.message}`));
+      p.addListener("autoplay_failed", () => setFeil("Nettleseren blokkerte lyden. Trykk spill igjen."));
+      p.connect();
+      spiller.current = p;
+    });
+
+    return () => {
+      avbrutt = true;
+      stoppOvervåking();
+      spiller.current?.disconnect();
+      spiller.current = null;
+      enhetId.current = null;
+    };
+  }, [innlogget, stoppOvervåking]);
+
+  const stopp = useCallback(() => {
+    stoppOvervåking();
+    spiller.current?.pause();
+    setAvspilling(null);
+  }, [stoppOvervåking]);
+
+  const spill = useCallback(
+    async (trackId: string, startMs: number, endMs: number) => {
+      const p = spiller.current;
+      if (!p || !enhetId.current) {
+        setFeil("Spotify-spilleren er ikke klar ennå.");
+        return;
+      }
+      // Må kalles direkte fra klikket for at mobil/Safari skal tillate lyd.
+      p.activateElement();
+      stoppOvervåking();
+      setFeil(null);
+
+      const token = await spotifyToken();
+      if (!token) return;
+      const svar = await fetch(
+        `https://api.spotify.com/v1/me/player/play?device_id=${enhetId.current}`,
+        {
+          method: "PUT",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ uris: [`spotify:track:${trackId}`], position_ms: startMs }),
+        },
+      );
+      if (!svar.ok) {
+        setFeil(
+          svar.status === 403
+            ? "Spotify nektet avspilling. Har kontoen Premium?"
+            : svar.status === 404
+              ? "Fant ikke spilleren. Last siden på nytt."
+              : `Spotify svarte ${svar.status}.`,
+        );
+        return;
+      }
+
+      setAvspilling({ trackId, startMs, endMs, posisjonMs: startMs });
+      let harSpilt = false;
+      overvåker.current = setInterval(async () => {
+        const state = await p.getCurrentState();
+        if (!state) return;
+        if (!state.paused) harSpilt = true;
+        if (state.position >= endMs || (harSpilt && state.paused)) {
+          stoppOvervåking();
+          if (!state.paused) p.pause();
+          setAvspilling(null);
+          return;
+        }
+        setAvspilling((a) => (a ? { ...a, posisjonMs: state.position } : a));
+      }, 250);
+    },
+    [stoppOvervåking],
+  );
+
+  const loggUt = useCallback(() => {
+    stopp();
+    loggUtSpotify();
+  }, [stopp]);
+
+  const verdi = useMemo(
+    () => ({ status, feil, avspilling, loggInn: loggInnSpotify, loggUt, spill, stopp }),
+    [status, feil, avspilling, loggUt, spill, stopp],
+  );
+
+  return <Kontekst.Provider value={verdi}>{children}</Kontekst.Provider>;
+}
