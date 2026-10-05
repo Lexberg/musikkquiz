@@ -138,7 +138,7 @@ export default function SpillPage() {
               </Knapp>
               <p className="text-center text-xs text-zinc-500">
                 Du kan ikke endre svaret etter at det er låst.
-                {tilstand.speed_bonus && " ⚡ De raskeste med alt riktig får bonuspoeng."}
+                {tilstand.speed_bonus && " ⚡ Alt riktig gir bonuspoeng – mer jo raskere du låser."}
               </p>
               {feil && <p className="text-sm text-red-600">{feil}</p>}
             </form>

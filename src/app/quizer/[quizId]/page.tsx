@@ -77,7 +77,7 @@ export default async function QuizPage({ params }: PageProps<"/quizer/[quizId]">
           />
           <label className="flex items-center gap-2 pb-2 text-sm">
             <input type="checkbox" name="hurtighet" defaultChecked={quiz.speed_bonus} />
-            Hurtighetspoeng (+3/+2/+1 til de raskeste med alt riktig)
+            Hurtighetspoeng (opptil +3 for alt riktig, mer jo raskere)
           </label>
           <Knapp variant="sekundær">Lagre innstillinger</Knapp>
         </form>

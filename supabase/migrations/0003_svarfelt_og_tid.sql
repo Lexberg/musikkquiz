@@ -10,6 +10,7 @@ alter table public.quizzes
 alter table public.games
   add column time_limit_seconds integer,
   add column speed_bonus boolean not null default false,
+  add column question_started_at timestamptz,
   add column question_deadline timestamptz;
 
 -- Svarfelt: [{"label": "Artist", "answer": "ABBA", "points": 1, "choices": ["ABBA", …]}]
@@ -51,7 +52,8 @@ language sql
 immutable
 as $$ select btrim(regexp_replace(lower(p), '[^[:alnum:]]+', ' ', 'g')) $$;
 
--- Hurtighetspoeng: lagene med alle svarfelt riktig, i rekkefølgen de låste, får 3, 2 og 1.
+-- Hurtighetspoeng: lag med alle svarfelt riktig får opptil 3 poeng etter hvor raskt de låste:
+-- +3 i første tredjedel av tiden, +2 i andre, +1 i siste. Uten nedtelling regnes det mot 30 sekunder.
 create function public.recalc_speed_bonus(p_game_id uuid, p_question_id uuid)
 returns void
 language plpgsql
@@ -59,23 +61,19 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_enabled boolean;
+  v_game public.games;
 begin
-  select g.speed_bonus into v_enabled from public.games g where g.id = p_game_id;
+  select * into v_game from public.games g where g.id = p_game_id;
 
   update public.answers a
-  set speed_bonus = coalesce(r.bonus, 0)
-  from (
-    select a2.id,
-      case when v_enabled and a2.part_points is not null and 0 < all (a2.part_points)
-        then greatest(0, 4 - row_number() over (
-          partition by (a2.part_points is not null and 0 < all (a2.part_points))
-          order by a2.submitted_at))
-      end as bonus
-    from public.answers a2
-    where a2.game_id = p_game_id and a2.question_id = p_question_id
-  ) r
-  where a.id = r.id and a.speed_bonus is distinct from coalesce(r.bonus, 0);
+  set speed_bonus = case
+    when v_game.speed_bonus and v_game.question_started_at is not null
+      and a.part_points is not null and 0 < all (a.part_points)
+    then greatest(0, ceil(3 * (1 - extract(epoch from a.submitted_at - v_game.question_started_at)
+                                   / coalesce(v_game.time_limit_seconds, 30))))::integer
+    else 0
+  end
+  where a.game_id = p_game_id and a.question_id = p_question_id;
 end;
 $$;
 
@@ -163,6 +161,7 @@ begin
   update public.games g
   set status = 'question',
       current_index = p_from_index + 1,
+      question_started_at = now(),
       question_deadline = case when g.time_limit_seconds is null then null
         else now() + make_interval(secs => g.time_limit_seconds) end
   where g.id = p_game_id
