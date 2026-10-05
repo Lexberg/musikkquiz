@@ -62,7 +62,14 @@ export function AiGenerator() {
           alle.slice(i, i + 4).map(async (s) => {
             if (s.trackId) return;
             const lat = await finnLat(s.tittel, s.artist).catch(() => null);
-            if (lat) Object.assign(s, { trackId: lat.id, varighetMs: lat.varighetMs, tittel: lat.tittel, artist: lat.artist });
+            if (lat)
+              Object.assign(s, {
+                trackId: lat.id,
+                varighetMs: lat.varighetMs,
+                tittel: lat.tittel,
+                artist: lat.artist,
+                cover: lat.cover ?? null,
+              });
           }),
         );
       }
@@ -77,6 +84,7 @@ export function AiGenerator() {
             tittel: s.tittel,
             artist: s.artist,
             trackId: s.trackId,
+            imageUrl: s.cover,
             ...avsnitt(s.startSek, lengdeMs, s.varighetMs ?? undefined),
           })),
         })),
@@ -154,6 +162,10 @@ export function AiGenerator() {
                 <li key={j} className="flex flex-col gap-2 py-3">
                   <div className="flex items-start gap-3">
                     <span className="w-6 text-right text-sm text-zinc-500">{j + 1}.</span>
+                    {s.imageUrl && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={s.imageUrl} alt="" width={40} height={40} className="rounded" title="Albumcover, vises når svarene låses" />
+                    )}
                     <div className="flex flex-1 flex-col">
                       <span className="font-medium">{s.prompt}</span>
                       <span className="text-sm text-zinc-500">

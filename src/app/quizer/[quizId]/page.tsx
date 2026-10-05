@@ -130,7 +130,10 @@ export default async function QuizPage({ params }: PageProps<"/quizer/[quizId]">
                 <li key={s.id} className="flex items-center gap-3 py-2">
                   <span className="w-6 text-right text-sm text-zinc-500">{j + 1}.</span>
                   <Link href={`/quizer/${quizId}/sporsmal/${s.id}`} className="flex flex-1 flex-col hover:underline">
-                    <span className="font-medium">{s.prompt}</span>
+                    <span className="font-medium">
+                      {s.prompt}
+                      {s.image_url && <span title="Har bilde"> 🖼</span>}
+                    </span>
                     <span className="text-sm text-zinc-500">
                       Fasit: {fasitTekst(s.parts)} · {poengSum(s.parts)} p ·{" "}
                       {s.spotify_track_id

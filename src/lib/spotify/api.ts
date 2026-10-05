@@ -10,6 +10,8 @@ export type SpotifyLat = {
   aar: string;
   varighetMs: number;
   bilde?: string;
+  /** Største albumcover, til bilde i spørsmålet. */
+  cover?: string;
 };
 
 type SpotifyTrack = {
@@ -31,6 +33,7 @@ function tilLat(t: SpotifyTrack): SpotifyLat {
     varighetMs: t.duration_ms,
     // Minste bilde som er minst 64 px.
     bilde: t.album.images.filter((b) => b.width >= 64).at(-1)?.url,
+    cover: t.album.images[0]?.url,
   };
 }
 
@@ -54,6 +57,10 @@ export async function sokLater(q: string, limit = 8): Promise<SpotifyLat[]> {
   const params = new URLSearchParams({ q, type: "track", limit: String(limit), market: "from_token" });
   const data = await spotifyGet<{ tracks: { items: SpotifyTrack[] } }>(`/search?${params}`);
   return data.tracks.items.map(tilLat);
+}
+
+export async function hentLat(id: string): Promise<SpotifyLat> {
+  return tilLat(await spotifyGet<SpotifyTrack>(`/tracks/${id}`));
 }
 
 /** Beste treff for tittel + artist, eller null. */

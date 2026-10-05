@@ -27,6 +27,9 @@ export type Sporsmal = {
   track_artist: string | null;
   start_ms: number;
   end_ms: number;
+  image_url: string | null;
+  /** «question» = hint mens de svarer, «reveal» = vises når svarene er låst. */
+  image_timing: "question" | "reveal";
 };
 
 export type SpillStatus = "lobby" | "question" | "locked" | "finished";
@@ -75,6 +78,7 @@ export type Deltakertilstand = {
   prompt?: string;
   round_title?: string;
   parts?: { label: string; choices?: string[] }[];
+  image_url?: string | null;
   my_answer?: string[] | null;
   answered?: number;
   teams?: number;

@@ -87,6 +87,10 @@ export default function SpillPage() {
               {tilstand.round_title && ` · ${tilstand.round_title}`}
             </p>
             <h1 className="text-2xl font-bold">{tilstand.prompt}</h1>
+            {tilstand.image_url && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={tilstand.image_url} alt="" className="max-h-64 w-full rounded-lg object-contain" />
+            )}
             {tilstand.status === "question" && (
               <div className="flex items-center justify-between text-sm text-zinc-500">
                 <span>

@@ -122,6 +122,19 @@ export default async function SpillPage({ params }: PageProps<"/quizer/[quizId]/
           {sporsmal ? (
             <>
               <h2 className="text-2xl font-bold">{sporsmal.prompt}</h2>
+              {sporsmal.image_url && (
+                <div className="flex items-start gap-3">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={sporsmal.image_url} alt="" className="max-h-40 rounded-lg object-contain" />
+                  <span className="text-sm text-zinc-500">
+                    {sporsmal.image_timing === "question"
+                      ? "Hint: deltakerne ser bildet nå."
+                      : spill.status === "locked"
+                        ? "Avsløring: deltakerne ser bildet nå."
+                        : "Avsløring: vises for deltakerne når svarene låses."}
+                  </span>
+                </div>
+              )}
               <div className="flex flex-col gap-1 rounded-lg bg-zinc-100 px-4 py-3 text-sm dark:bg-zinc-900">
                 <span>
                   <strong>Fasit:</strong> {fasitTekst(sporsmal.parts)} ({poengSum(sporsmal.parts)} p)

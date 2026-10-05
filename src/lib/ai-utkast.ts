@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { tillattBildeUrl } from "./bilde";
 import { svarfeltListe } from "./svarfelt";
 
 /** Et AI-generert quizutkast slik det vises og lagres. */
@@ -16,6 +17,8 @@ export const utkastSkjema = z.object({
               tittel: z.string().max(200),
               artist: z.string().max(200),
               trackId: z.string().regex(/^[A-Za-z0-9]{22}$/).nullable(),
+              /** Albumcover, vist som avsløring når svarene er låst. */
+              imageUrl: z.string().refine(tillattBildeUrl).nullable(),
               startMs: z.number().int().min(0),
               endMs: z.number().int().min(1),
             }),

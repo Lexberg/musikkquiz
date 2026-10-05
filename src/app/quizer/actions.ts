@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireSpillmester } from "@/lib/supabase/server";
+import { tillattBildeUrl } from "@/lib/bilde";
 import { lagAlternativer, svarfeltListe } from "@/lib/svarfelt";
 import { spotifyTrackId, tidTilMs } from "@/lib/tid";
 
@@ -135,7 +136,7 @@ export async function flyttRunde(quizId: string, rundeId: string, retning: "opp"
 // Spørsmål
 
 export type SporsmalFeil = Partial<
-  Record<"prompt" | "parts" | "spotify" | "start" | "slutt" | "generelt", string>
+  Record<"prompt" | "parts" | "spotify" | "start" | "slutt" | "bilde" | "generelt", string>
 >;
 
 const sporsmalSkjema = z
@@ -174,6 +175,12 @@ const sporsmalSkjema = z
         if (!id) ctx.addIssue({ code: "custom", message: "Ugyldig Spotify-lenke" });
         return id;
       }),
+    bilde: z
+      .string()
+      .trim()
+      .refine((url) => !url || tillattBildeUrl(url), "Ugyldig bilde")
+      .transform((url) => url || null),
+    image_timing: z.enum(["question", "reveal"]).catch("reveal"),
     track_title: z.string().trim().max(200).transform((s) => s || null),
     track_artist: z.string().trim().max(200).transform((s) => s || null),
     start: z.string().transform((s, ctx) => {
@@ -203,6 +210,8 @@ export async function lagreSporsmal(
   const felt = sporsmalSkjema.safeParse({
     prompt: formData.get("prompt") ?? "",
     parts: formData.get("parts") ?? "[]",
+    bilde: formData.get("image_url") ?? "",
+    image_timing: formData.get("image_timing"),
     spotify: formData.get("spotify") ?? "",
     track_title: formData.get("track_title") ?? "",
     track_artist: formData.get("track_artist") ?? "",
@@ -222,6 +231,8 @@ export async function lagreSporsmal(
   const rad = {
     prompt: v.prompt,
     parts: v.parts,
+    image_url: v.bilde,
+    image_timing: v.image_timing,
     spotify_track_id: v.spotify,
     track_title: v.track_title,
     track_artist: v.track_artist,

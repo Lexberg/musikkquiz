@@ -77,7 +77,15 @@ const spillelisteSvar = z.object({
   ),
 });
 
-export type AiLat = { id: string; tittel: string; artist: string; album: string; aar: string; varighetMs: number };
+export type AiLat = {
+  id: string;
+  tittel: string;
+  artist: string;
+  album: string;
+  aar: string;
+  varighetMs: number;
+  cover?: string;
+};
 
 export type GenererInput = {
   runder: number;
@@ -94,6 +102,7 @@ export type RaattSporsmal = {
   startSek: number;
   trackId: string | null;
   varighetMs: number | null;
+  cover: string | null;
 };
 
 export type GenererSvar =
@@ -153,6 +162,7 @@ export async function genererQuiz(input: GenererInput): Promise<GenererSvar> {
           startSek: q.start_seconds,
           trackId: null,
           varighetMs: null,
+          cover: null,
         })),
       })),
     };
@@ -186,6 +196,7 @@ export async function genererQuiz(input: GenererInput): Promise<GenererSvar> {
             startSek: q.start_seconds,
             trackId: lat.id,
             varighetMs: lat.varighetMs,
+            cover: lat.cover ?? null,
           },
         ];
       }),
@@ -219,6 +230,8 @@ export async function lagreAiQuiz(utkast: Utkast): Promise<string> {
             position: j + 1,
             prompt: s.prompt,
             parts: s.parts,
+            image_url: s.imageUrl,
+            image_timing: "reveal",
             spotify_track_id: s.trackId,
             track_title: s.tittel || null,
             track_artist: s.artist || null,

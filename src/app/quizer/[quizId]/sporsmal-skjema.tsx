@@ -8,6 +8,7 @@ import { LatSok, type ValgtLat } from "@/components/spotify/lat-sok";
 import { msTilTid, spotifyTrackId, tidTilMs } from "@/lib/tid";
 import type { Sporsmal } from "@/lib/typer";
 import type { SporsmalFeil } from "../actions";
+import { BildeVelger } from "./bilde-velger";
 import { SvarfeltEditor } from "./svarfelt-editor";
 
 type Props = {
@@ -108,6 +109,18 @@ export function SporsmalSkjema({ quizId, sporsmal, lagre }: Props) {
           </div>
         </div>
         <AvspillKnapp avsnitt={avsnittFraSkjema} tekst="▶ Test avsnitt" />
+      </fieldset>
+
+      <fieldset className="flex flex-col gap-4">
+        <legend className="mb-2 text-sm font-semibold uppercase tracking-wide text-zinc-500">
+          Bilde (valgfritt)
+        </legend>
+        <BildeVelger
+          startUrl={sporsmal?.image_url ?? null}
+          startVisning={sporsmal?.image_timing ?? "reveal"}
+          hentTrackId={() => spotifyTrackId(String(new FormData(skjema.current!).get("spotify") ?? ""))}
+        />
+        <Feilmelding tekst={feil?.bilde} />
       </fieldset>
 
       <Feilmelding tekst={feil?.generelt} />
