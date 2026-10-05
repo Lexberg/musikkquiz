@@ -69,6 +69,8 @@ export function SpotifyProvider({ children }: { children: React.ReactNode }) {
   const spiller = useRef<Spotify.Player | null>(null);
   const enhetId = useRef<string | null>(null);
   const overvåker = useRef<ReturnType<typeof setInterval> | null>(null);
+  // De som venter på at spilleren skal bli klar (ny enhets-ID).
+  const venterPåKlar = useRef<((id: string) => void)[]>([]);
 
   const status: SpotifyStatus = !spotifyClientId
     ? "mangler-oppsett"
@@ -100,6 +102,7 @@ export function SpotifyProvider({ children }: { children: React.ReactNode }) {
       };
       p.addListener("ready", ({ device_id }) => {
         enhetId.current = device_id;
+        venterPåKlar.current.splice(0).forEach((v) => v(device_id));
         setFeil(null);
         setSpillerStatus("klar");
       });
@@ -136,10 +139,23 @@ export function SpotifyProvider({ children }: { children: React.ReactNode }) {
     setAvspilling(null);
   }, [stoppOvervåking]);
 
+  /** Venter på neste «ready» fra spilleren, maks `ms`. */
+  const ventPåEnhet = useCallback(
+    (ms: number) =>
+      new Promise<string | null>((resolve) => {
+        const timer = setTimeout(() => resolve(null), ms);
+        venterPåKlar.current.push((id) => {
+          clearTimeout(timer);
+          resolve(id);
+        });
+      }),
+    [],
+  );
+
   const spill = useCallback(
     async (trackId: string, startMs: number, endMs: number) => {
       const p = spiller.current;
-      if (!p || !enhetId.current) {
+      if (!p) {
         setFeil("Spotify-spilleren er ikke klar ennå.");
         return;
       }
@@ -150,20 +166,44 @@ export function SpotifyProvider({ children }: { children: React.ReactNode }) {
 
       const token = await spotifyToken();
       if (!token) return;
-      const svar = await fetch(
-        `https://api.spotify.com/v1/me/player/play?device_id=${enhetId.current}`,
-        {
+      const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+      const spillPå = (id: string) =>
+        fetch(`https://api.spotify.com/v1/me/player/play?device_id=${id}`, {
           method: "PUT",
-          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          headers,
           body: JSON.stringify({ uris: [`spotify:track:${trackId}`], position_ms: startMs }),
-        },
-      );
-      if (!svar.ok) {
+        });
+
+      let id = enhetId.current ?? (await ventPåEnhet(5000));
+      let svar = id ? await spillPå(id) : null;
+
+      // 404: Spotify kjenner ikke enheten (nettopp startet, eller mistet etter dvale).
+      // Først: flytt avspillingen hit og prøv igjen.
+      if (id && svar?.status === 404) {
+        await fetch("https://api.spotify.com/v1/me/player", {
+          method: "PUT",
+          headers,
+          body: JSON.stringify({ device_ids: [id], play: false }),
+        });
+        await new Promise((r) => setTimeout(r, 800));
+        svar = await spillPå(id);
+      }
+      // Deretter: koble spilleren til på nytt og bruk den nye enheten.
+      if (!svar || svar.status === 404) {
+        p.disconnect();
+        enhetId.current = null;
+        const nyEnhet = ventPåEnhet(8000);
+        await p.connect();
+        id = await nyEnhet;
+        svar = id ? await spillPå(id) : null;
+      }
+
+      if (!svar?.ok) {
         setFeil(
-          svar.status === 403
+          svar?.status === 403
             ? "Spotify nektet avspilling. Har kontoen Premium?"
-            : svar.status === 404
-              ? "Fant ikke spilleren. Last siden på nytt."
+            : !svar || svar.status === 404
+              ? "Fant ikke Spotify-spilleren. Last siden på nytt, og sjekk at Spotify ikke er åpen i en annen fane."
               : `Spotify svarte ${svar.status}.`,
         );
         return;
@@ -184,7 +224,7 @@ export function SpotifyProvider({ children }: { children: React.ReactNode }) {
         setAvspilling((a) => (a ? { ...a, posisjonMs: state.position } : a));
       }, 250);
     },
-    [stoppOvervåking],
+    [stoppOvervåking, ventPåEnhet],
   );
 
   const loggUt = useCallback(() => {
