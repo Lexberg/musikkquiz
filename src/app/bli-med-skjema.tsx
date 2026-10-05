@@ -44,7 +44,7 @@ export function BliMedSkjema({ startkode }: { startkode: string }) {
           autoComplete="off"
           className="[&_input]:text-center [&_input]:font-mono [&_input]:text-2xl [&_input]:uppercase [&_input]:tracking-[0.3em]"
         />
-        <Felt label="Lagnavn" name="navn" required maxLength={40} autoComplete="off" />
+        <Felt label="Lagnavn" name="navn" required maxLength={40} autoComplete="off" autoFocus={!!startkode} />
         {feil && <p className="text-sm text-red-600">{feil}</p>}
         <Knapp disabled={venter} className="py-3 text-base">
           {venter ? "Blir med …" : "Bli med"}

@@ -17,6 +17,7 @@ import {
 import { AvspillKnapp } from "@/components/spotify/avspill-knapp";
 import { LiveOppdatering } from "./live-oppdatering";
 import { Nedtelling } from "@/components/nedtelling";
+import { QrKode } from "@/components/qr-kode";
 
 export default async function SpillPage({ params }: PageProps<"/quizer/[quizId]/spill/[spillId]">) {
   const { quizId, spillId } = await params;
@@ -84,9 +85,20 @@ export default async function SpillPage({ params }: PageProps<"/quizer/[quizId]/
         <Link href={`/quizer/${quizId}`} className="text-sm text-zinc-500 hover:underline">
           ← Tilbake til quizen
         </Link>
-        <div className="rounded-xl bg-violet-600 px-6 py-5 text-center text-white">
-          <p className="text-sm opacity-80">Gå til {bliMedUrl} og skriv koden</p>
-          <p className="font-mono text-5xl font-bold tracking-[0.3em]">{spill.code}</p>
+        <div className="flex flex-wrap items-center justify-center gap-6 rounded-xl bg-violet-600 px-6 py-5 text-white">
+          <QrKode url={`${bliMedUrl}/?kode=${spill.code}`} størrelse={120} />
+          <div className="flex flex-col items-center gap-1 text-center">
+            <p className="text-sm opacity-80">Skann, eller gå til {bliMedUrl} og skriv koden</p>
+            <p className="font-mono text-5xl font-bold tracking-[0.3em]">{spill.code}</p>
+            <a
+              href={`/storskjerm/${spill.code}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-1 text-sm font-semibold underline underline-offset-2 hover:opacity-80"
+            >
+              📺 Åpne storskjerm i ny fane
+            </a>
+          </div>
         </div>
       </div>
 

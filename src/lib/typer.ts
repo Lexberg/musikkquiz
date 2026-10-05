@@ -85,3 +85,19 @@ export type Deltakertilstand = {
   seconds_left?: number | null;
   scoreboard?: { name: string; points: number }[];
 };
+
+/** Det storskjermen får fra screen_state(). Kan vises for alle; aldri fasit eller låt. */
+export type Storskjermtilstand = {
+  code: string;
+  status: SpillStatus;
+  number: number;
+  total: number;
+  speed_bonus: boolean;
+  teams: { name: string; points: number; locked: boolean }[];
+  prompt?: string;
+  round_title?: string;
+  image_url?: string | null;
+  parts?: { label: string; choices?: string[] }[];
+  answered?: number;
+  seconds_left?: number | null;
+};
