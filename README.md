@@ -22,6 +22,24 @@ Deltakerne blir med på mobilen med en spillkode og svarer på spørsmålene.
    npm run dev
    ```
 
+## Supabase-oppsett
+
+1. Lag et prosjekt på [supabase.com](https://supabase.com).
+2. **Project Settings -> API**: kopier prosjekt-URL og publishable key (eller anon key) til
+   `.env.local` som `NEXT_PUBLIC_SUPABASE_URL` og `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+   (`NEXT_PUBLIC_SUPABASE_ANON_KEY` fungerer også).
+3. **SQL Editor**: kjør filene i `supabase/migrations/` i rekkefølge.
+4. **Authentication -> Users -> Add user**: lag spillmester-brukeren med e-post og passord
+   (huk av for «Auto Confirm User»).
+5. **Authentication -> Sign In / Providers**: slå av «Allow new users to sign up», så ingen
+   andre kan lage konto. Deltakerne trenger ikke konto.
+
+## Publisering (Vercel)
+
+1. På [vercel.com](https://vercel.com): **Add New -> Project** og importer GitHub-repoet.
+2. Legg inn de samme miljøvariablene som i `.env.local` under **Environment Variables**.
+3. Deploy. Hver push til `main` publiseres automatisk.
+
 ## Faser
 
 1. Grunnmur: oppsett, innlogging, publisering
