@@ -2,58 +2,28 @@
 
 import { useEffect, useState } from "react";
 import { Knapp } from "@/components/skjema";
-import { spotifyToken } from "@/lib/spotify/auth";
+import { sokLater, type SpotifyLat } from "@/lib/spotify/api";
 import { msTilTid } from "@/lib/tid";
 import { useSpotify } from "./spotify-provider";
 
-export type ValgtLat = {
-  id: string;
-  tittel: string;
-  artist: string;
-  varighetMs: number;
-};
-
-type Treff = ValgtLat & { bilde?: string };
-
-type SpotifyTrack = {
-  id: string;
-  name: string;
-  duration_ms: number;
-  artists: { name: string }[];
-  album: { images: { url: string; width: number }[] };
-};
+export type ValgtLat = SpotifyLat;
 
 export function LatSok({ onVelg }: { onVelg: (lat: ValgtLat) => void }) {
   const { status, loggInn } = useSpotify();
   const [sok, setSok] = useState("");
-  const [treff, setTreff] = useState<Treff[]>([]);
+  const [treff, setTreff] = useState<SpotifyLat[]>([]);
   const [feil, setFeil] = useState<string | null>(null);
 
   useEffect(() => {
     const q = sok.trim();
     const timer = setTimeout(async () => {
       if (q.length < 2) return setTreff([]);
-      const token = await spotifyToken();
-      if (!token) return;
-      const url = new URL("https://api.spotify.com/v1/search");
-      url.search = new URLSearchParams({ q, type: "track", limit: "8", market: "from_token" }).toString();
-      const svar = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-      if (!svar.ok) {
-        setFeil(`Søket feilet (Spotify svarte ${svar.status}).`);
-        return;
+      try {
+        setTreff(await sokLater(q));
+        setFeil(null);
+      } catch (e) {
+        setFeil(e instanceof Error ? `Søket feilet: ${e.message}` : "Søket feilet.");
       }
-      const data: { tracks: { items: SpotifyTrack[] } } = await svar.json();
-      setFeil(null);
-      setTreff(
-        data.tracks.items.map((t) => ({
-          id: t.id,
-          tittel: t.name,
-          artist: t.artists.map((a) => a.name).join(", "),
-          varighetMs: t.duration_ms,
-          // Minste bilde som er minst 64 px.
-          bilde: t.album.images.filter((b) => b.width >= 64).at(-1)?.url,
-        })),
-      );
     }, 300);
     return () => clearTimeout(timer);
   }, [sok]);

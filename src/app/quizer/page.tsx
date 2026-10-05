@@ -20,6 +20,9 @@ export default async function QuizerPage() {
         <Felt label="Ny quiz" name="tittel" placeholder="F.eks. Julequiz 2026" required className="flex-1" />
         <Knapp>Lag quiz</Knapp>
       </form>
+      <Link href="/quizer/ai" className="-mt-4 self-start text-sm font-semibold text-violet-600 hover:underline">
+        ✨ Eller la AI lage en quiz for deg
+      </Link>
 
       {quizer?.length ? (
         <ul className="divide-y divide-zinc-200 rounded-lg border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
