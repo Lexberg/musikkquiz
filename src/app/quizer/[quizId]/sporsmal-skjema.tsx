@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useRef } from "react";
+import { useActionState, useRef, useState } from "react";
 import { Felt, Knapp } from "@/components/skjema";
 import { AvspillKnapp } from "@/components/spotify/avspill-knapp";
+import { LatSok, type ValgtLat } from "@/components/spotify/lat-sok";
 import { msTilTid, spotifyTrackId, tidTilMs } from "@/lib/tid";
 import type { Sporsmal } from "@/lib/typer";
 import type { SporsmalFeil } from "../actions";
@@ -17,6 +18,15 @@ type Props = {
 export function SporsmalSkjema({ quizId, sporsmal, lagre }: Props) {
   const [feil, action, venter] = useActionState(lagre, null);
   const skjema = useRef<HTMLFormElement>(null);
+  const [valgtLat, setValgtLat] = useState<ValgtLat | null>(null);
+
+  function velgLat(lat: ValgtLat) {
+    const felt = (navn: string) => skjema.current?.elements.namedItem(navn) as HTMLInputElement;
+    felt("spotify").value = `https://open.spotify.com/track/${lat.id}`;
+    felt("track_title").value = lat.tittel;
+    felt("track_artist").value = lat.artist;
+    setValgtLat(lat);
+  }
 
   // Leser låt og avsnitt fra feltene slik de står nå, også før lagring.
   function avsnittFraSkjema() {
@@ -63,13 +73,20 @@ export function SporsmalSkjema({ quizId, sporsmal, lagre }: Props) {
         <legend className="mb-2 text-sm font-semibold uppercase tracking-wide text-zinc-500">
           Låt og avsnitt
         </legend>
+        <LatSok onVelg={velgLat} />
+        {valgtLat && (
+          <p className="text-sm text-green-700 dark:text-green-400">
+            ✓ Valgt: {valgtLat.tittel} – {valgtLat.artist} (lengde{" "}
+            {msTilTid(Math.round(valgtLat.varighetMs / 1000) * 1000)}). Velg start og slutt under.
+          </p>
+        )}
         <div>
           <Felt
             label="Spotify-lenke"
             name="spotify"
             defaultValue={sporsmal?.spotify_track_id ? `https://open.spotify.com/track/${sporsmal.spotify_track_id}` : ""}
             placeholder="https://open.spotify.com/track/…"
-            hjelp="Spotify-appen: Del → Kopier lenke til låt."
+            hjelp="Fylles ut av søket, eller lim inn fra Spotify-appen: Del → Kopier lenke til låt."
           />
           <Feilmelding tekst={feil?.spotify} />
         </div>
