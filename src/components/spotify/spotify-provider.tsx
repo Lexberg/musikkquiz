@@ -34,7 +34,8 @@ type SpotifyKontekst = {
   avspilling: Avspilling | null;
   loggInn: () => void;
   loggUt: () => void;
-  spill: (trackId: string, startMs: number, endMs: number) => Promise<void>;
+  /** Spiller avsnittet; true hvis avspillingen startet. */
+  spill: (trackId: string, startMs: number, endMs: number) => Promise<boolean>;
   stopp: () => void;
 };
 
@@ -153,11 +154,11 @@ export function SpotifyProvider({ children }: { children: React.ReactNode }) {
   );
 
   const spill = useCallback(
-    async (trackId: string, startMs: number, endMs: number) => {
+    async (trackId: string, startMs: number, endMs: number): Promise<boolean> => {
       const p = spiller.current;
       if (!p) {
         setFeil("Spotify-spilleren er ikke klar ennå.");
-        return;
+        return false;
       }
       // Må kalles direkte fra klikket for at mobil/Safari skal tillate lyd.
       p.activateElement();
@@ -165,7 +166,7 @@ export function SpotifyProvider({ children }: { children: React.ReactNode }) {
       setFeil(null);
 
       const token = await spotifyToken();
-      if (!token) return;
+      if (!token) return false;
       const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
       const spillPå = (id: string) =>
         fetch(`https://api.spotify.com/v1/me/player/play?device_id=${id}`, {
@@ -206,7 +207,7 @@ export function SpotifyProvider({ children }: { children: React.ReactNode }) {
               ? "Fant ikke Spotify-spilleren. Last siden på nytt, og sjekk at Spotify ikke er åpen i en annen fane."
               : `Spotify svarte ${svar.status}.`,
         );
-        return;
+        return false;
       }
 
       setAvspilling({ trackId, startMs, endMs, posisjonMs: startMs });
@@ -223,6 +224,7 @@ export function SpotifyProvider({ children }: { children: React.ReactNode }) {
         }
         setAvspilling((a) => (a ? { ...a, posisjonMs: state.position } : a));
       }, 250);
+      return true;
     },
     [stoppOvervåking, ventPåEnhet],
   );

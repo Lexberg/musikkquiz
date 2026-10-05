@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Knapp } from "@/components/skjema";
 import { msTilTid } from "@/lib/tid";
 import { useSpotify } from "./spotify-provider";
@@ -11,12 +11,30 @@ type Props = {
     | { trackId: string; startMs: number; endMs: number }
     | (() => { trackId: string; startMs: number; endMs: number } | string);
   tekst?: string;
+  /** Kalles når avspillingen har startet (f.eks. for å starte nedtellingen). */
+  vedStart?: () => void;
 };
 
-export function AvspillKnapp({ avsnitt, tekst = "▶ Spill avsnitt" }: Props) {
+export function AvspillKnapp({ avsnitt, tekst = "▶ Spill avsnitt", vedStart }: Props) {
   const { status, feil: spotifyFeil, avspilling, loggInn, spill, stopp } = useSpotify();
   const [skjemaFeil, setSkjemaFeil] = useState<string | null>(null);
   const feil = skjemaFeil ?? spotifyFeil;
+
+  const fast = typeof avsnitt === "function" ? null : avsnitt;
+  const spillerDenne = avspilling && (!fast || avspilling.trackId === fast.trackId);
+
+  // Stopp musikken når knappen forsvinner eller får et annet avsnitt (f.eks. neste spørsmål),
+  // men bare hvis det er denne knappens låt som spilles.
+  const spillerDenneRef = useRef(spillerDenne);
+  useEffect(() => {
+    spillerDenneRef.current = spillerDenne;
+  });
+  const nøkkel = fast ? `${fast.trackId}:${fast.startMs}:${fast.endMs}` : "skjema";
+  useEffect(() => {
+    return () => {
+      if (spillerDenneRef.current) stopp();
+    };
+  }, [nøkkel, stopp]);
 
   if (status === "mangler-oppsett") {
     return <p className="text-sm text-zinc-500">Spotify er ikke satt opp (mangler Client ID).</p>;
@@ -32,17 +50,15 @@ export function AvspillKnapp({ avsnitt, tekst = "▶ Spill avsnitt" }: Props) {
     );
   }
 
-  const fast = typeof avsnitt === "function" ? null : avsnitt;
-  const spillerDenne = avspilling && (!fast || avspilling.trackId === fast.trackId);
   const fremdrift = spillerDenne
     ? Math.min(1, (avspilling.posisjonMs - avspilling.startMs) / (avspilling.endMs - avspilling.startMs))
     : 0;
 
-  function start() {
+  async function start() {
     const valgt = typeof avsnitt === "function" ? avsnitt() : avsnitt;
     if (typeof valgt === "string") return setSkjemaFeil(valgt);
     setSkjemaFeil(null);
-    spill(valgt.trackId, valgt.startMs, valgt.endMs);
+    if (await spill(valgt.trackId, valgt.startMs, valgt.endMs)) vedStart?.();
   }
 
   return (

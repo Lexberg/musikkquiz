@@ -13,6 +13,7 @@ import {
   lasSvar,
   nesteSporsmal,
   settPoeng,
+  startKlokke,
 } from "@/app/quizer/spill-actions";
 import { AvspillKnapp } from "@/components/spotify/avspill-knapp";
 import { LiveOppdatering } from "./live-oppdatering";
@@ -123,6 +124,14 @@ export default async function SpillPage({ params }: PageProps<"/quizer/[quizId]/
               Spørsmål {nr} av {totalt}
               {sporsmal?.rounds && ` · ${sporsmal.rounds.title}`}
             </p>
+            {spill.status === "question" && !spill.question_started_at && (
+              <form action={startKlokke.bind(null, quizId, spillId)} className="flex items-center gap-2">
+                <span className="text-sm text-zinc-500">
+                  {spill.time_limit_seconds ? "Nedtellingen" : "Klokken"} starter når du spiller låten
+                </span>
+                <Knapp variant="sekundær">Start nå</Knapp>
+              </form>
+            )}
             {spill.status === "question" && spill.question_deadline && (
               <Nedtelling
                 key={spill.question_deadline}
@@ -173,6 +182,7 @@ export default async function SpillPage({ params }: PageProps<"/quizer/[quizId]/
                           startMs: sporsmal.start_ms,
                           endMs: sporsmal.end_ms,
                         }}
+                        vedStart={spill.status === "question" ? startKlokke.bind(null, quizId, spillId) : undefined}
                       />
                     </div>
                   </>

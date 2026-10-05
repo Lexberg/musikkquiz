@@ -50,10 +50,17 @@ export async function startSpill(quizId: string) {
   throw new Error("Fant ingen ledig spillkode");
 }
 
-/** Går til neste spørsmål og starter nedtellingen. `fraIndeks` hindrer dobbeltklikk i å hoppe over et spørsmål. */
+/** Går til neste spørsmål (nedtellingen starter når låten spilles). `fraIndeks` hindrer dobbeltklikk i å hoppe over et spørsmål. */
 export async function nesteSporsmal(quizId: string, spillId: string, fraIndeks: number) {
   const supabase = await requireSpillmester();
   await supabase.rpc("host_next_question", { p_game_id: spillId, p_from_index: fraIndeks });
+  revalidatePath(spillSti(quizId, spillId));
+}
+
+/** Starter nedtellingen og hurtighetsmålingen (når låten spilles, eller manuelt). */
+export async function startKlokke(quizId: string, spillId: string) {
+  const supabase = await requireSpillmester();
+  await supabase.rpc("host_start_clock", { p_game_id: spillId });
   revalidatePath(spillSti(quizId, spillId));
 }
 

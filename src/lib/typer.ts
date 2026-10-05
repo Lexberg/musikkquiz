@@ -43,6 +43,8 @@ export type Spill = {
   current_index: number;
   time_limit_seconds: number | null;
   speed_bonus: boolean;
+  /** Når klokken startet for gjeldende spørsmål; null til låten spilles. */
+  question_started_at: string | null;
   question_deadline: string | null;
   created_at: string;
 };
