@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireSpillmester } from "@/lib/supabase/server";
 import { msTilTid } from "@/lib/tid";
-import type { Quiz, Runde, Sporsmal } from "@/lib/typer";
+import type { Quiz, Runde, Spill, Sporsmal } from "@/lib/typer";
 import { Felt, Knapp } from "@/components/skjema";
 import {
   endreQuiz,
@@ -13,6 +13,7 @@ import {
   slettQuiz,
   slettRunde,
 } from "../actions";
+import { startSpill } from "../spill-actions";
 
 type RundeMedSporsmal = Runde & { questions: Sporsmal[] };
 
@@ -35,6 +36,14 @@ export default async function QuizPage({ params }: PageProps<"/quizer/[quizId]">
     .order("position", { referencedTable: "questions" })
     .returns<RundeMedSporsmal[]>();
 
+  const { data: aktiveSpill } = await supabase
+    .from("games")
+    .select("id, code, status, current_index, question_ids")
+    .eq("quiz_id", quizId)
+    .neq("status", "finished")
+    .order("created_at", { ascending: false })
+    .returns<Spill[]>();
+
   const antallSporsmal = runder?.reduce((n, r) => n + r.questions.length, 0) ?? 0;
 
   return (
@@ -51,6 +60,30 @@ export default async function QuizPage({ params }: PageProps<"/quizer/[quizId]">
           {runder?.length ?? 0} runder · {antallSporsmal} spørsmål
         </p>
       </div>
+
+      <section className="flex flex-col gap-3 rounded-lg bg-violet-50 p-4 dark:bg-violet-950/40">
+        <form action={startSpill.bind(null, quizId)} className="flex flex-wrap items-center gap-3">
+          <Knapp disabled={antallSporsmal === 0}>▶ Start live-quiz</Knapp>
+          <span className="text-sm text-zinc-500">
+            {antallSporsmal === 0
+              ? "Legg til minst ett spørsmål først."
+              : "Du får en spillkode som deltakerne skriver inn på mobilen."}
+          </span>
+        </form>
+        {aktiveSpill?.map((s) => (
+          <Link
+            key={s.id}
+            href={`/quizer/${quizId}/spill/${s.id}`}
+            className="text-sm font-semibold text-violet-600 hover:underline"
+          >
+            Pågående spill {s.code} ·{" "}
+            {s.status === "lobby"
+              ? "venterom"
+              : `spørsmål ${s.current_index + 1} av ${s.question_ids.length}`}{" "}
+            →
+          </Link>
+        ))}
+      </section>
 
       {runder?.map((runde, i) => (
         <section

@@ -24,3 +24,11 @@ export function spotifyTrackId(tekst: string): string | null {
   const m = tekst.trim().match(/^(?:.*track[/:])?([A-Za-z0-9]{22})(?:\?.*)?$/);
   return m ? m[1] : null;
 }
+
+/** For automatisk retting: små bokstaver, uten tegnsetting og doble mellomrom. */
+export function normaliserSvar(tekst: string): string {
+  return tekst
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
+}
