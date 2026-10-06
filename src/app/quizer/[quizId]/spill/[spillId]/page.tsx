@@ -260,7 +260,10 @@ export default async function SpillPage({ params }: PageProps<"/quizer/[quizId]/
             <div className="flex flex-col gap-2">
               <p className="text-sm text-zinc-500">
                 Svar som er like fasiten er rettet automatisk (små skrivefeil i fritekst godtas). Juster med ✓/✗ om nødvendig.
-                {spill.speed_bonus && " ⚡ Lag med alt riktig får opptil +3 i hurtighetspoeng, mer jo raskere de låste."}
+                {spill.speed_bonus &&
+                  (spill.time_limit_seconds
+                    ? " ⚡ Lag med alt riktig får opptil +3 i hurtighetspoeng, mer jo raskere de låste."
+                    : " ⚡ De tre raskeste lagene med alt riktig får +3, +2 og +1 i hurtighetspoeng.")}
               </p>
               <form action={sisteSporsmal ? avslutt : neste}>
                 <Knapp>{sisteSporsmal ? "Avslutt og vis resultat" : "Neste spørsmål"}</Knapp>
