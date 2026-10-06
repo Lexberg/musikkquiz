@@ -181,6 +181,7 @@ function Innhold({ t, bliMedUrl, vedNull }: { t: Storskjermtilstand; bliMedUrl: 
                   >
                     {ute && "✗ "}
                     {l.name}
+                    <Poeng p={l.points} />
                   </li>
                 );
               })}
@@ -201,6 +202,7 @@ function Innhold({ t, bliMedUrl, vedNull }: { t: Storskjermtilstand; bliMedUrl: 
                 >
                   {l.locked && "✓ "}
                   {l.name}
+                  <Poeng p={l.points} />
                 </li>
               ))}
             </ul>
@@ -217,6 +219,11 @@ function Innhold({ t, bliMedUrl, vedNull }: { t: Storskjermtilstand; bliMedUrl: 
       </footer>
     </div>
   );
+}
+
+/** Lagets poengsum ved navnet mens spørsmålet er åpent. */
+function Poeng({ p }: { p: number }) {
+  return <span className="ml-3 font-mono font-bold text-violet-300">{p} p</span>;
 }
 
 function Poengtavle({ lag, stor = false }: { lag: Storskjermtilstand["teams"]; stor?: boolean }) {
