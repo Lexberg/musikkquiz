@@ -102,7 +102,8 @@ function Innhold({ t, bliMedUrl, vedNull }: { t: Storskjermtilstand; bliMedUrl: 
           {t.parts && (
             <div className="flex flex-col gap-4">
               {t.parts.map((p, i) =>
-                p.choices ? (
+                // Med buzzer svarer laget muntlig, så alternativene vises ikke.
+                p.choices && !buzzer ? (
                   <div key={i} className="flex flex-col gap-2">
                     {t.parts!.length > 1 && <span className="text-2xl text-zinc-400">{p.label}</span>}
                     <div className="grid grid-cols-2 gap-3">
