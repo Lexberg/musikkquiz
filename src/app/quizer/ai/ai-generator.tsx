@@ -14,7 +14,7 @@ type Steg = "skjema" | "henter-liste" | "genererer" | "finner-later" | "utkast" 
 
 const stegTekst: Partial<Record<Steg, string>> = {
   "henter-liste": "Henter spillelisten fra Spotify …",
-  genererer: "Claude lager quizen. Dette kan ta et minutt eller to …",
+  genererer: "AI-en lager quizen. Dette kan ta et minutt eller to …",
   "finner-later": "Finner låtene på Spotify …",
   lagrer: "Lagrer quizen …",
 };

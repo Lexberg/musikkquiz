@@ -1,7 +1,6 @@
 "use server";
 
-import Anthropic from "@anthropic-ai/sdk";
-import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
+import { generateText, NoObjectGeneratedError, Output, RetryError } from "ai";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireSpillmester } from "@/lib/supabase/server";
@@ -109,29 +108,38 @@ export type GenererSvar =
   | { ok: true; tittel: string; runder: { tittel: string; sporsmal: RaattSporsmal[] }[] }
   | { ok: false; feil: string };
 
+// Går via Vercel AI Gateway: på Vercel logges appen inn automatisk (OIDC), lokalt med AI_GATEWAY_API_KEY.
+// Modellen kan byttes med AI_GATEWAY_MODEL, f.eks. til en modell som inngår i gratisnivået.
+const modell = process.env.AI_GATEWAY_MODEL || "anthropic/claude-opus-5.5";
+
+/** Gjør feil fra AI Gateway om til en melding spillmesteren kan gjøre noe med. */
+function feilmelding(e: unknown): string {
+  const feil = RetryError.isInstance(e) ? e.lastError : e;
+  if (NoObjectGeneratedError.isInstance(feil)) return "Fikk et uventet svar fra AI-en. Prøv igjen.";
+  const status = (feil as { statusCode?: number }).statusCode;
+  const tekst = feil instanceof Error ? feil.message : "";
+  if (status === 401) return "AI Gateway avviste innloggingen. Er appen deployet på Vercel, eller er AI_GATEWAY_API_KEY satt?";
+  if (status === 402) return "AI Gateway-kreditten er brukt opp for denne måneden.";
+  if (status === 429) return "For mange forespørsler akkurat nå. Vent litt og prøv igjen.";
+  return `AI Gateway svarte med feil${status ? ` (${status})` : ""}${tekst ? `: ${tekst}` : ""}`;
+}
+
 async function spørClaude<T>(innhold: string, format: z.ZodType<T>): Promise<T | string> {
-  if (!process.env.ANTHROPIC_API_KEY) return "ANTHROPIC_API_KEY mangler i miljøvariablene (Vercel).";
   try {
-    const client = new Anthropic();
-    const svar = await client.beta.messages.parse({
-      model: "claude-opus-5-5",
-      max_tokens: 16000,
-      betas: ["server-side-fallback-2026-07-01"],
-      fallbacks: "default",
-      output_config: { effort: "medium", format: betaZodOutputFormat(format) },
-      system,
-      messages: [{ role: "user", content: innhold }],
+    const { output, finishReason } = await generateText({
+      model: modell,
+      instructions: system,
+      prompt: innhold,
+      output: Output.object({ schema: format }),
+      reasoning: "medium",
+      maxOutputTokens: 16000,
     });
-    if (svar.stop_reason === "refusal") return "Claude ville ikke lage denne quizen. Prøv et annet tema.";
-    if (svar.stop_reason === "max_tokens") return "Quizen ble for lang. Prøv færre spørsmål.";
-    return svar.parsed_output ?? "Fikk et uventet svar fra Claude. Prøv igjen.";
+    if (finishReason === "length") return "Quizen ble for lang. Prøv færre spørsmål.";
+    if (finishReason === "content-filter") return "AI-en ville ikke lage denne quizen. Prøv et annet tema.";
+    return output;
   } catch (e) {
-    if (e instanceof Anthropic.AuthenticationError) return "ANTHROPIC_API_KEY mangler eller er ugyldig.";
-    if (e instanceof Anthropic.RateLimitError) return "For mange forespørsler til Claude. Vent litt og prøv igjen.";
-    if (e instanceof Anthropic.APIError) return `Claude svarte med feil (${e.status ?? "ingen forbindelse"}). Prøv igjen.`;
-    // Andre feil (f.eks. svar som ikke passer skjemaet) skal vises, ikke krasje siden.
     console.error("AI-generering feilet", e);
-    return `Noe gikk galt under genereringen${e instanceof Error ? `: ${e.message}` : ""}. Prøv igjen.`;
+    return feilmelding(e);
   }
 }
 
