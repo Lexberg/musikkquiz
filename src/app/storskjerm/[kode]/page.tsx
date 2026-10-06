@@ -105,7 +105,12 @@ function Innhold({ t, bliMedUrl, vedNull }: { t: Storskjermtilstand; bliMedUrl: 
                     {t.parts!.length > 1 && <span className="text-2xl text-zinc-400">{p.label}</span>}
                     <div className="grid grid-cols-2 gap-3">
                       {p.choices.map((valg) => (
-                        <span key={valg} className="rounded-xl bg-zinc-800 px-6 py-4 text-3xl font-semibold">
+                        <span
+                          key={valg}
+                          className={`rounded-xl px-6 py-4 text-3xl font-semibold ${
+                            t.correct?.[i] === valg ? "bg-green-600" : "bg-zinc-800"
+                          }`}
+                        >
                           {valg}
                         </span>
                       ))}
@@ -121,7 +126,19 @@ function Innhold({ t, bliMedUrl, vedNull }: { t: Storskjermtilstand; bliMedUrl: 
               )}
             </div>
           )}
-          {t.status === "locked" && <p className="text-4xl font-semibold text-amber-400">🔒 Svarene er låst</p>}
+          {t.status === "locked" &&
+            (t.correct ? (
+              <div className="flex flex-wrap gap-x-10 gap-y-3">
+                {t.correct.map((riktig, i) => (
+                  <div key={i} className="flex flex-col">
+                    <span className="text-2xl text-zinc-400">{t.parts?.[i]?.label ?? "Fasit"}</span>
+                    <span className="text-5xl font-bold text-green-400">{riktig}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-4xl font-semibold text-amber-400">🔒 Svarene er låst</p>
+            ))}
         </div>
         {t.image_url && (
           // eslint-disable-next-line @next/next/no-img-element

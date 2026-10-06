@@ -9,14 +9,14 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "latest",
-    "@supabase/ssr": "latest",
-    "@supabase/supabase-js": "latest",
+    "@anthropic-ai/sdk": "^0.131.0",
+    "@supabase/ssr": "^0.12.7",
+    "@supabase/supabase-js": "^2.117.2",
     "next": "16.2.7",
-    "qrcode.react": "latest",
+    "qrcode.react": "^4.2.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "zod": "latest"
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

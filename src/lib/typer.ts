@@ -85,6 +85,13 @@ export type Deltakertilstand = {
   answered?: number;
   teams?: number;
   seconds_left?: number | null;
+  /** Fasit per svarfelt, først når svarene er låst. */
+  correct?: string[] | null;
+  /** Lagets poeng per svarfelt etter låsing; null = ikke rettet. */
+  my_points?: number[] | null;
+  my_bonus?: number | null;
+  /** Lagets poengsum så langt, etter låsing. */
+  my_total?: number;
   scoreboard?: { name: string; points: number }[];
 };
 
@@ -102,4 +109,6 @@ export type Storskjermtilstand = {
   parts?: { label: string; choices?: string[] }[];
   answered?: number;
   seconds_left?: number | null;
+  /** Fasit per svarfelt, først når svarene er låst. */
+  correct?: string[] | null;
 };

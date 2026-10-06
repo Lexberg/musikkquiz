@@ -18,10 +18,16 @@ export default function SpillPage() {
   const [sender, setSender] = useState(false);
   const [feil, setFeil] = useState<string | null>(null);
 
-  const forlat = useCallback(() => {
+  // Laget slettes, så ingen venter på det. Etter at quizen er avsluttet blir det stående på resultatlisten.
+  const forlat = useCallback(async () => {
+    if (lag) {
+      await createClient()
+        .rpc("leave_game", { p_team_id: lag.teamId, p_secret: lag.secret })
+        .then(() => {}, () => {});
+    }
     glemLag();
     router.replace("/");
-  }, [router]);
+  }, [lag, router]);
 
   const hent = useCallback(
     async (l: LagrettLag) => {
@@ -50,6 +56,7 @@ export default function SpillPage() {
   const verdier = utkast?.nr === nr ? utkast.verdier : parts.map(() => "");
   const klar = parts.length > 0 && verdier.every((v) => v.trim());
   const låst = !!tilstand.my_answer;
+  const fasit = tilstand.status === "locked" ? tilstand.correct : null;
 
   function settVerdi(i: number, verdi: string) {
     setUtkast({ nr, verdier: verdier.map((v, j) => (j === i ? verdi : v)) });
@@ -146,6 +153,8 @@ export default function SpillPage() {
               </p>
               {feil && <p className="text-sm text-red-600">{feil}</p>}
             </form>
+          ) : fasit ? (
+            <Fasit tilstand={tilstand} fasit={fasit} />
           ) : (
             <div className="flex flex-col gap-1 rounded-lg bg-zinc-100 px-4 py-3 text-center dark:bg-zinc-900">
               <p className="font-semibold">
@@ -190,6 +199,47 @@ export default function SpillPage() {
   );
 }
 
+function Fasit({ tilstand, fasit }: { tilstand: Deltakertilstand; fasit: string[] }) {
+  const parts = tilstand.parts ?? [];
+  const poeng = tilstand.my_points;
+  return (
+    <div className="flex flex-col gap-3 rounded-lg bg-zinc-100 px-4 py-3 dark:bg-zinc-900">
+      <p className="text-center font-semibold">🔒 Svarene er låst</p>
+      <ul className="flex flex-col gap-2">
+        {fasit.map((riktig, i) => {
+          const mitt = tilstand.my_answer?.[i];
+          const rett = poeng ? poeng[i] > 0 : null;
+          return (
+            <li key={i} className="flex flex-col">
+              {parts.length > 1 && <span className="text-xs text-zinc-500">{parts[i]?.label}</span>}
+              <span className="font-semibold">{riktig}</span>
+              <span
+                className={`text-sm ${
+                  rett === true ? "text-green-600" : rett === false ? "text-red-600" : "text-zinc-500"
+                }`}
+              >
+                {mitt == null
+                  ? "Du svarte ikke"
+                  : `${rett === true ? "✓" : rett === false ? "✗" : ""} Ditt svar: ${mitt}${
+                      rett ? ` (+${poeng![i]})` : ""
+                    }`}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+      {!!tilstand.my_bonus && (
+        <p className="text-sm font-semibold text-amber-600">⚡ +{tilstand.my_bonus} i hurtighetspoeng</p>
+      )}
+      {tilstand.my_total != null && (
+        <p className="border-t border-zinc-200 pt-2 text-center text-sm text-zinc-500 dark:border-zinc-800">
+          Dere har <strong className="text-zinc-900 dark:text-zinc-100">{tilstand.my_total} poeng</strong> så langt
+        </p>
+      )}
+    </div>
+  );
+}
+
 function Ramme({
   lagnavn,
   onForlat,
@@ -209,7 +259,7 @@ function Ramme({
           {bekreft ? (
             <span className="flex gap-3">
               <button onClick={onForlat} className="font-semibold text-red-600">
-                Ja, forlat
+                Ja, forlat og slett laget
               </button>
               <button onClick={() => setBekreft(false)} className="text-zinc-500">
                 Avbryt

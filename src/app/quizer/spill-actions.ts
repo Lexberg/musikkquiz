@@ -11,6 +11,11 @@ function lagKode() {
   return Array.from(tall, (n) => kodeTegn[n % kodeTegn.length]).join("");
 }
 
+/** Kaster ved databasefeil, så spillmesteren ser at noe gikk galt i stedet for at ingenting skjer. */
+function sjekk({ error }: { error: { message: string } | null }) {
+  if (error) throw new Error(error.message);
+}
+
 function spillSti(quizId: string, spillId: string) {
   return `/quizer/${quizId}/spill/${spillId}`;
 }
@@ -53,28 +58,28 @@ export async function startSpill(quizId: string) {
 /** Går til neste spørsmål (nedtellingen starter når låten spilles). `fraIndeks` hindrer dobbeltklikk i å hoppe over et spørsmål. */
 export async function nesteSporsmal(quizId: string, spillId: string, fraIndeks: number) {
   const supabase = await requireSpillmester();
-  await supabase.rpc("host_next_question", { p_game_id: spillId, p_from_index: fraIndeks });
+  sjekk(await supabase.rpc("host_next_question", { p_game_id: spillId, p_from_index: fraIndeks }));
   revalidatePath(spillSti(quizId, spillId));
 }
 
 /** Starter nedtellingen og hurtighetsmålingen (når låten spilles, eller manuelt). */
 export async function startKlokke(quizId: string, spillId: string) {
   const supabase = await requireSpillmester();
-  await supabase.rpc("host_start_clock", { p_game_id: spillId });
+  sjekk(await supabase.rpc("host_start_clock", { p_game_id: spillId }));
   revalidatePath(spillSti(quizId, spillId));
 }
 
 /** Låser svarene og retter automatisk (i databasen). */
 export async function lasSvar(quizId: string, spillId: string) {
   const supabase = await requireSpillmester();
-  await supabase.rpc("host_lock_question", { p_game_id: spillId });
+  sjekk(await supabase.rpc("host_lock_question", { p_game_id: spillId }));
   revalidatePath(spillSti(quizId, spillId));
 }
 
 /** Kalles når nedtellingen er ute på spillmesterens side. */
 export async function lasHvisUtlopt(quizId: string, spillId: string) {
   const supabase = await requireSpillmester();
-  await supabase.rpc("host_lock_if_expired", { p_game_id: spillId });
+  sjekk(await supabase.rpc("host_lock_if_expired", { p_game_id: spillId }));
   revalidatePath(spillSti(quizId, spillId));
 }
 
@@ -87,27 +92,25 @@ export async function settPoeng(
   poeng: number,
 ) {
   const supabase = await requireSpillmester();
-  const { data: svar } = await supabase
-    .from("answers")
-    .select("answer_values, part_points")
-    .eq("id", svarId)
-    .single<{ answer_values: string[]; part_points: number[] | null }>();
-  if (!svar) return;
-  const nye = svar.part_points ?? svar.answer_values.map(() => 0);
-  nye[feltIndeks] = poeng;
-  await supabase.from("answers").update({ part_points: nye }).eq("id", svarId);
+  sjekk(
+    await supabase.rpc("host_set_part_points", {
+      p_answer_id: svarId,
+      p_index: feltIndeks,
+      p_points: poeng,
+    }),
+  );
   revalidatePath(spillSti(quizId, spillId));
 }
 
 export async function fjernLag(quizId: string, spillId: string, lagId: string) {
   const supabase = await requireSpillmester();
-  await supabase.from("teams").delete().eq("id", lagId);
+  sjekk(await supabase.from("teams").delete().eq("id", lagId));
   revalidatePath(spillSti(quizId, spillId));
 }
 
 export async function avsluttSpill(quizId: string, spillId: string) {
   const supabase = await requireSpillmester();
-  await supabase.from("games").update({ status: "finished" }).eq("id", spillId);
+  sjekk(await supabase.from("games").update({ status: "finished" }).eq("id", spillId));
   revalidatePath(spillSti(quizId, spillId));
   revalidatePath(`/quizer/${quizId}`);
 }
