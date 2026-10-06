@@ -82,6 +82,9 @@ Nye spillmestere registrerer seg på `/registrer` med en invitasjonskode.
 
 Uten begge variablene er registreringen slått av.
 
+Innloggede spillmestere finner en ferdig invitasjonslenke under **Inviter** øverst i appen
+(`/registrer?kode=…`, med kopier-, dele- og QR-knapp). Koden fylles da inn automatisk.
+
 ## Publisering (Vercel)
 
 1. På [vercel.com](https://vercel.com): **Add New -> Project** og importer GitHub-repoet.

@@ -16,6 +16,9 @@ export default function SpillmesterLayout({ children }: LayoutProps<"/quizer">) 
             </Link>
             <div className="flex items-center gap-2">
               <SpotifyStatus />
+              <Link href="/quizer/inviter" className="px-2 text-sm font-semibold text-violet-600 hover:underline">
+                Inviter
+              </Link>
               <form action={loggUt}>
                 <Knapp variant="sekundær">Logg ut</Knapp>
               </form>
