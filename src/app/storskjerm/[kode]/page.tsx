@@ -30,7 +30,7 @@ export default function StorskjermPage() {
   const bliMedUrl = `${origin}/?kode=${tilstand?.code ?? kode}`;
 
   return (
-    <div className="flex min-h-screen flex-1 flex-col bg-zinc-950 px-[4vw] py-[3vh] text-white">
+    <div className="flex h-dvh flex-col overflow-hidden bg-zinc-950 px-[3vw] py-[3vh] text-white">
       {feil && !tilstand && <p className="m-auto text-3xl text-red-400">{feil}</p>}
       {!feil && !tilstand && <p className="m-auto text-3xl text-zinc-500">Kobler til …</p>}
       {tilstand && <Innhold t={tilstand} bliMedUrl={bliMedUrl} vedNull={hent} />}
@@ -80,150 +80,152 @@ function Innhold({ t, bliMedUrl, vedNull }: { t: Storskjermtilstand; bliMedUrl: 
   const buzzer = t.answer_mode === "buzzer";
 
   return (
-    <div className="flex flex-1 flex-col gap-[3vh]">
-      <header className="flex items-center justify-between gap-6 text-2xl text-zinc-400">
-        <span>
-          Spørsmål {t.number} av {t.total}
-          {t.round_title && ` · ${t.round_title}`}
-        </span>
-        <div className="flex items-center gap-6">
+    <div className="flex min-h-0 flex-1 gap-[3vw]">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-[3vh]">
+        <header className="flex items-center justify-between gap-6 text-2xl text-zinc-400">
+          <span>
+            Spørsmål {t.number} av {t.total}
+            {t.round_title && ` · ${t.round_title}`}
+          </span>
           {t.status === "question" && t.seconds_left != null && (
             <span className="text-5xl">
               <Nedtelling key={t.number} tid={{ sekunder: t.seconds_left }} vedNull={vedNull} />
             </span>
           )}
-          <span className="font-mono text-3xl font-bold tracking-widest text-violet-400">{t.code}</span>
-        </div>
-      </header>
+        </header>
 
-      <div className="flex flex-1 flex-wrap items-center justify-center gap-[4vw]">
-        <div className="flex max-w-5xl flex-1 flex-col gap-[3vh]">
-          <h1 className="text-[4.5vw] font-bold leading-tight">{t.prompt}</h1>
-          {t.parts && (
-            <div className="flex flex-col gap-4">
-              {t.parts.map((p, i) =>
-                // Med buzzer svarer laget muntlig, så alternativene vises ikke.
-                p.choices && !buzzer ? (
-                  <div key={i} className="flex flex-col gap-2">
-                    {t.parts!.length > 1 && <span className="text-2xl text-zinc-400">{p.label}</span>}
-                    <div className="grid grid-cols-2 gap-3">
-                      {p.choices.map((valg) => (
-                        <span
-                          key={valg}
-                          className={`rounded-xl px-6 py-4 text-3xl font-semibold ${
-                            t.correct?.[i] === valg ? "bg-green-600" : "bg-zinc-800"
-                          }`}
-                        >
-                          {valg}
-                        </span>
-                      ))}
+        <div className="flex min-h-0 flex-1 items-center gap-[3vw]">
+          <div className="flex min-w-0 flex-1 flex-col gap-[3vh]">
+            <h1 className="text-[3.6vw] font-bold leading-tight">{t.prompt}</h1>
+            {t.parts && (
+              <div className="flex flex-col gap-4">
+                {t.parts.map((p, i) =>
+                  // Med buzzer svarer laget muntlig, så alternativene vises ikke.
+                  p.choices && !buzzer ? (
+                    <div key={i} className="flex flex-col gap-2">
+                      {t.parts!.length > 1 && <span className="text-2xl text-zinc-400">{p.label}</span>}
+                      <div className="grid grid-cols-2 gap-3">
+                        {p.choices.map((valg) => (
+                          <span
+                            key={valg}
+                            className={`rounded-xl px-6 py-[1.5vh] text-[2vw] font-semibold ${
+                              t.correct?.[i] === valg ? "bg-green-600" : "bg-zinc-800"
+                            }`}
+                          >
+                            {valg}
+                          </span>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ) : (
-                  t.parts!.length > 1 && (
-                    <span key={i} className="self-start rounded-xl border-2 border-zinc-700 px-6 py-3 text-3xl text-zinc-300">
-                      {p.label}
-                    </span>
-                  )
-                ),
-              )}
-            </div>
-          )}
-          {buzzer && t.buzz_holder && (
-            <p className="animate-pulse self-start rounded-2xl bg-red-600 px-8 py-4 text-[3.5vw] font-black leading-tight">
-              🔔 {t.buzz_holder} svarer!
-            </p>
-          )}
-          {buzzer && t.status === "locked" && (
-            <p className="text-4xl font-semibold text-amber-400">
-              {t.buzz_winner ? `🏆 ${t.buzz_winner} svarte riktig` : "Ingen svarte riktig"}
-            </p>
-          )}
-          {t.status === "locked" &&
-            (t.correct ? (
-              <div className="flex flex-wrap gap-x-10 gap-y-3">
-                {t.correct.map((riktig, i) => (
-                  <div key={i} className="flex flex-col">
-                    <span className="text-2xl text-zinc-400">{t.parts?.[i]?.label ?? "Fasit"}</span>
-                    <span className="text-5xl font-bold text-green-400">{riktig}</span>
-                  </div>
-                ))}
+                  ) : (
+                    t.parts!.length > 1 && (
+                      <span key={i} className="self-start rounded-xl border-2 border-zinc-700 px-6 py-3 text-3xl text-zinc-300">
+                        {p.label}
+                      </span>
+                    )
+                  ),
+                )}
               </div>
-            ) : (
-              <p className="text-4xl font-semibold text-amber-400">🔒 Svarene er låst</p>
-            ))}
+            )}
+            {buzzer && t.buzz_holder && (
+              <p className="animate-pulse self-start rounded-2xl bg-red-600 px-8 py-4 text-[3vw] font-black leading-tight">
+                🔔 {t.buzz_holder} svarer!
+              </p>
+            )}
+            {buzzer && t.status === "locked" && (
+              <p className="text-4xl font-semibold text-amber-400">
+                {t.buzz_winner ? `🏆 ${t.buzz_winner} svarte riktig` : "Ingen svarte riktig"}
+              </p>
+            )}
+            {t.status === "locked" &&
+              (t.correct ? (
+                <div className="flex flex-wrap gap-x-10 gap-y-3">
+                  {t.correct.map((riktig, i) => (
+                    <div key={i} className="flex flex-col">
+                      <span className="text-2xl text-zinc-400">{t.parts?.[i]?.label ?? "Fasit"}</span>
+                      <span className="text-[3vw] font-bold leading-tight text-green-400">{riktig}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-4xl font-semibold text-amber-400">🔒 Svarene er låst</p>
+              ))}
+          </div>
+          {t.image_url && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={t.image_url} alt="" className="max-h-full max-w-[28vw] rounded-2xl object-contain" />
+          )}
         </div>
-        {t.image_url && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={t.image_url} alt="" className="max-h-[55vh] max-w-[40vw] rounded-2xl object-contain" />
+
+        {t.status === "question" && (
+          <p className="text-2xl text-zinc-400">
+            {buzzer
+              ? t.buzz_holder
+                ? "Buzzeren er tatt"
+                : "🔔 Først til å trykke får svare"
+              : `${t.answered ?? 0} av ${t.teams.length} lag har låst`}
+          </p>
         )}
       </div>
 
-      <footer className="flex items-end justify-between gap-6">
-        {t.status === "question" && buzzer ? (
-          <div className="flex flex-col gap-3">
-            <span className="text-2xl text-zinc-400">
-              {t.buzz_holder ? "Buzzeren er tatt" : "🔔 Først til å trykke får svare"}
-            </span>
-            <ul className="flex flex-wrap gap-3">
-              {t.teams.map((l) => {
-                const ute = t.buzz_out?.includes(l.name);
-                return (
-                  <li
-                    key={l.name}
-                    className={`rounded-full px-5 py-2 text-2xl font-semibold transition-colors ${
-                      l.name === t.buzz_holder
-                        ? "bg-red-600"
-                        : ute
-                          ? "bg-zinc-900 text-zinc-600 line-through"
-                          : "bg-zinc-800 text-zinc-300"
-                    }`}
-                  >
-                    {ute && "✗ "}
-                    {l.name}
-                    <Poeng p={l.points} />
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        ) : t.status === "question" ? (
-          <div className="flex flex-col gap-3">
-            <span className="text-2xl text-zinc-400">
-              {t.answered ?? 0} av {t.teams.length} lag har låst
-            </span>
-            <ul className="flex flex-wrap gap-3">
-              {t.teams.map((l) => (
-                <li
-                  key={l.name}
-                  className={`rounded-full px-5 py-2 text-2xl font-semibold transition-colors ${
-                    l.locked ? "bg-green-600" : "bg-zinc-800 text-zinc-400"
-                  }`}
-                >
-                  {l.locked && "✓ "}
-                  {l.name}
-                  <Poeng p={l.points} />
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : (
-          <div className={`w-full ${t.teams.length > 6 ? "max-w-6xl" : "max-w-3xl"}`}>
-            <Poengtavle lag={t.teams} />
-          </div>
-        )}
-        <div className="flex shrink-0 flex-col items-center gap-2 text-zinc-400">
-          <QrKode url={bliMedUrl} størrelse={110} />
+      <aside className="flex min-h-0 w-[26vw] shrink-0 flex-col gap-[2vh] rounded-2xl bg-zinc-900/60 p-[1.5vw]">
+        <div className="flex items-baseline justify-between gap-4">
+          <h2 className="text-[1.6vw] font-bold text-zinc-400">Poengtavle</h2>
+          <span className="font-mono text-[1.6vw] font-bold tracking-widest text-violet-400">{t.code}</span>
+        </div>
+        <Sidetavle t={t} />
+        <div className="flex items-center gap-4 text-zinc-400">
+          <QrKode url={bliMedUrl} størrelse={90} />
           <span className="text-lg">Bli med</span>
         </div>
-      </footer>
+      </aside>
     </div>
   );
 }
 
-/** Lagets poengsum ved navnet mens spørsmålet er åpent. */
-function Poeng({ p }: { p: number }) {
-  return <span className="ml-3 font-mono font-bold text-violet-300">{p} p</span>;
+/**
+ * Poengtavla til høyre mens spørsmålene pågår. Alle lag får plass uten scrolling:
+ * radene krymper med antall lag, og over 14 lag brukes to kolonner.
+ */
+function Sidetavle({ t }: { t: Storskjermtilstand }) {
+  const medaljer = ["🥇", "🥈", "🥉"];
+  const åpen = t.status === "question";
+  const buzzer = t.answer_mode === "buzzer";
+  const toKolonner = t.teams.length > 14;
+  const rader = Math.max(6, toKolonner ? Math.ceil(t.teams.length / 2) : t.teams.length);
+  const skrift = `min(${toKolonner ? 1.1 : 1.5}vw, ${(34 / rader).toFixed(2)}vh)`;
+
+  if (t.teams.length === 0) return <p className="flex-1 text-xl text-zinc-500">Ingen lag</p>;
+
+  return (
+    <ol
+      className={`grid min-h-0 flex-1 content-start gap-[0.6vh] ${toKolonner ? "grid-flow-col grid-cols-2 gap-x-[0.8vw]" : ""}`}
+      style={{ gridTemplateRows: `repeat(${rader}, minmax(0, ${(60 / rader).toFixed(2)}vh))`, fontSize: skrift }}
+    >
+      {t.teams.map((l, i) => {
+        const svarer = buzzer && åpen && l.name === t.buzz_holder;
+        const ute = buzzer && åpen && t.buzz_out?.includes(l.name);
+        const låst = !buzzer && åpen && l.locked;
+        return (
+          <li
+            key={l.name}
+            className={`flex min-h-0 min-w-0 items-center gap-[0.6vw] rounded-lg px-[0.8vw] transition-colors ${
+              svarer ? "bg-red-600" : låst ? "bg-green-700" : "bg-zinc-800"
+            } ${ute ? "text-zinc-500 line-through" : ""}`}
+          >
+            <span className="w-[1.8em] shrink-0 text-center">{medaljer[i] ?? `${i + 1}.`}</span>
+            <span className="min-w-0 flex-1 truncate font-semibold">
+              {svarer && "🔔 "}
+              {låst && "✓ "}
+              {ute && "✗ "}
+              {l.name}
+            </span>
+            <span className="shrink-0 font-mono font-bold text-violet-300">{l.points}</span>
+          </li>
+        );
+      })}
+    </ol>
+  );
 }
 
 function Poengtavle({ lag, stor = false }: { lag: Storskjermtilstand["teams"]; stor?: boolean }) {
