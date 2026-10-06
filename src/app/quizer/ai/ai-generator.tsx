@@ -26,7 +26,11 @@ export function AiGenerator() {
   const [feil, setFeil] = useState<string | null>(null);
   const [utkast, setUtkast] = useState<Utkast | null>(null);
 
-  async function generer(formData: FormData) {
+  async function generer(e: React.FormEvent<HTMLFormElement>) {
+    // onSubmit i stedet for form action: en action kjører som transition, og da vises ikke
+    // lastestatusen før hele genereringen er ferdig.
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
     setFeil(null);
     const felles = {
       runder: Number(formData.get("runder")),
@@ -216,7 +220,7 @@ export function AiGenerator() {
   }
 
   return (
-    <form action={generer} className="flex flex-col gap-5">
+    <form onSubmit={generer} className="flex flex-col gap-5">
       <div className="flex gap-2">
         {(["tema", "spilleliste"] as const).map((m) => (
           <Knapp key={m} type="button" variant={modus === m ? "primær" : "sekundær"} onClick={() => setModus(m)}>
