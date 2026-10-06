@@ -6,6 +6,7 @@ import { Felt, Knapp } from "@/components/skjema";
 import { AvspillKnapp } from "@/components/spotify/avspill-knapp";
 import { LatSok, type ValgtLat } from "@/components/spotify/lat-sok";
 import { msTilTid, spotifyTrackId, tidTilMs } from "@/lib/tid";
+import { vaskTittel, type Svarfelt } from "@/lib/svarfelt";
 import type { Sporsmal } from "@/lib/typer";
 import type { SporsmalFeil } from "../actions";
 import { BildeVelger } from "./bilde-velger";
@@ -21,6 +22,9 @@ export function SporsmalSkjema({ quizId, sporsmal, lagre }: Props) {
   const [feil, action, venter] = useActionState(lagre, null);
   const skjema = useRef<HTMLFormElement>(null);
   const [valgtLat, setValgtLat] = useState<ValgtLat | null>(null);
+  // Hurtigvalgene bytter ut svarfeltene ved å montere editoren på nytt med nye startverdier.
+  const [svarfelt, setSvarfelt] = useState({ nokkel: 0, start: sporsmal?.parts });
+  const [hurtigFeil, setHurtigFeil] = useState<string | null>(null);
 
   function velgLat(lat: ValgtLat) {
     const felt = (navn: string) => skjema.current?.elements.namedItem(navn) as HTMLInputElement;
@@ -28,6 +32,24 @@ export function SporsmalSkjema({ quizId, sporsmal, lagre }: Props) {
     felt("track_title").value = lat.tittel;
     felt("track_artist").value = lat.artist;
     setValgtLat(lat);
+  }
+
+  function hurtigvalg(type: "artist" | "lat" | "begge") {
+    const felt = (navn: string) => skjema.current?.elements.namedItem(navn) as HTMLInputElement;
+    const tittel = vaskTittel(felt("track_title").value);
+    const artist = felt("track_artist").value.trim();
+    if (!tittel || !artist) return setHurtigFeil("Velg en låt først, eller fyll inn tittel og artist.");
+    setHurtigFeil(null);
+
+    const artistFelt: Svarfelt = { label: "Artist", answer: artist, points: 1 };
+    const latFelt: Svarfelt = { label: "Låt", answer: tittel, points: 1 };
+    const valg = {
+      artist: { prompt: "Hvem synger denne låten?", parts: [artistFelt] },
+      lat: { prompt: "Hva heter låten?", parts: [latFelt] },
+      begge: { prompt: "Hvem synger, og hva heter låten?", parts: [artistFelt, latFelt] },
+    }[type];
+    felt("prompt").value = valg.prompt;
+    setSvarfelt((f) => ({ nokkel: f.nokkel + 1, start: valg.parts }));
   }
 
   // Leser låt og avsnitt fra feltene slik de står nå, også før lagring.
@@ -47,25 +69,6 @@ export function SporsmalSkjema({ quizId, sporsmal, lagre }: Props) {
 
   return (
     <form ref={skjema} action={action} className="flex flex-col gap-6">
-      <fieldset className="flex flex-col gap-4">
-        <legend className="mb-2 text-sm font-semibold uppercase tracking-wide text-zinc-500">
-          Det deltakerne ser
-        </legend>
-        <Felt label="Spørsmål" name="prompt" defaultValue={sporsmal?.prompt} placeholder="Hvem synger denne låten?" required />
-        <Feilmelding tekst={feil?.prompt} />
-      </fieldset>
-
-      <fieldset className="flex flex-col gap-4">
-        <legend className="mb-2 text-sm font-semibold uppercase tracking-wide text-zinc-500">
-          Svar og fasit
-        </legend>
-        <p className="-mt-2 text-sm text-zinc-500">
-          Deltakerne ser navnet på hvert svarfelt (f.eks. «Artist» og «Låt»), aldri fasiten.
-        </p>
-        <SvarfeltEditor start={sporsmal?.parts} />
-        <Feilmelding tekst={feil?.parts} />
-      </fieldset>
-
       <fieldset className="flex flex-col gap-4">
         <legend className="mb-2 text-sm font-semibold uppercase tracking-wide text-zinc-500">
           Låt og avsnitt
@@ -109,6 +112,43 @@ export function SporsmalSkjema({ quizId, sporsmal, lagre }: Props) {
           </div>
         </div>
         <AvspillKnapp avsnitt={avsnittFraSkjema} tekst="▶ Test avsnitt" />
+      </fieldset>
+
+      <fieldset className="flex flex-col gap-4">
+        <legend className="mb-2 text-sm font-semibold uppercase tracking-wide text-zinc-500">
+          Det deltakerne ser
+        </legend>
+        <div className="flex flex-col gap-2">
+          <span className="text-sm font-medium">Hurtigvalg fra låten</span>
+          <div className="flex flex-wrap gap-2">
+            <Knapp type="button" variant="sekundær" onClick={() => hurtigvalg("artist")}>
+              Artist
+            </Knapp>
+            <Knapp type="button" variant="sekundær" onClick={() => hurtigvalg("lat")}>
+              Låt
+            </Knapp>
+            <Knapp type="button" variant="sekundær" onClick={() => hurtigvalg("begge")}>
+              Artist + låt
+            </Knapp>
+          </div>
+          <span className="text-xs text-zinc-500">
+            Fyller ut spørsmål og fasit fra låten over. Alt kan endres etterpå – eller skriv ditt eget spørsmål.
+          </span>
+          <Feilmelding tekst={hurtigFeil ?? undefined} />
+        </div>
+        <Felt label="Spørsmål" name="prompt" defaultValue={sporsmal?.prompt} placeholder="Hvem synger denne låten?" required />
+        <Feilmelding tekst={feil?.prompt} />
+      </fieldset>
+
+      <fieldset className="flex flex-col gap-4">
+        <legend className="mb-2 text-sm font-semibold uppercase tracking-wide text-zinc-500">
+          Svar og fasit
+        </legend>
+        <p className="-mt-2 text-sm text-zinc-500">
+          Deltakerne ser navnet på hvert svarfelt (f.eks. «Artist» og «Låt»), aldri fasiten.
+        </p>
+        <SvarfeltEditor key={svarfelt.nokkel} start={svarfelt.start} />
+        <Feilmelding tekst={feil?.parts} />
       </fieldset>
 
       <fieldset className="flex flex-col gap-4">

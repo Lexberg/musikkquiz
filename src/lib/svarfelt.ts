@@ -43,3 +43,15 @@ export function lagAlternativer(fasit: string, feil: string[]) {
   }
   return alle;
 }
+
+const tillegg = /\b(remaster(ed)?|live|mono|stereo|version|versjon|edit|mix|remix|single|radio|acoustic|akustisk|demo)\b/i;
+
+/** Fjerner Spotify-tillegg som «– Remastered 2011» og «(feat. X)» fra en låttittel. */
+export function vaskTittel(tittel: string) {
+  const vasket = tittel
+    .replace(/\s*[([](feat\.?|ft\.?|with|med)\s[^)\]]*[)\]]/gi, "")
+    .replace(/\s*[([][^)\]]*[)\]]/g, (del) => (tillegg.test(del) ? "" : del))
+    .replace(/\s+[-–—]\s+.*$/, (del) => (tillegg.test(del) ? "" : del))
+    .trim();
+  return vasket || tittel.trim();
+}
