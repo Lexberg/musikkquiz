@@ -110,6 +110,7 @@ export type GenererSvar =
   | { ok: false; feil: string };
 
 async function spørClaude<T>(innhold: string, format: z.ZodType<T>): Promise<T | string> {
+  if (!process.env.ANTHROPIC_API_KEY) return "ANTHROPIC_API_KEY mangler i miljøvariablene (Vercel).";
   try {
     const client = new Anthropic();
     const svar = await client.beta.messages.parse({
@@ -128,9 +129,9 @@ async function spørClaude<T>(innhold: string, format: z.ZodType<T>): Promise<T 
     if (e instanceof Anthropic.AuthenticationError) return "ANTHROPIC_API_KEY mangler eller er ugyldig.";
     if (e instanceof Anthropic.RateLimitError) return "For mange forespørsler til Claude. Vent litt og prøv igjen.";
     if (e instanceof Anthropic.APIError) return `Claude svarte med feil (${e.status ?? "ingen forbindelse"}). Prøv igjen.`;
-    // Klienten feiler før forespørselen hvis ingen nøkkel er satt.
-    if (e instanceof Anthropic.AnthropicError) return "ANTHROPIC_API_KEY mangler i miljøvariablene.";
-    throw e;
+    // Andre feil (f.eks. svar som ikke passer skjemaet) skal vises, ikke krasje siden.
+    console.error("AI-generering feilet", e);
+    return `Noe gikk galt under genereringen${e instanceof Error ? `: ${e.message}` : ""}. Prøv igjen.`;
   }
 }
 
