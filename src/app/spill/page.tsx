@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Nedtelling } from "@/components/nedtelling";
 import { Knapp } from "@/components/skjema";
 import { useSpillkanal } from "@/lib/bruk-spillkanal";
@@ -17,6 +17,9 @@ export default function SpillPage() {
   const [utkast, setUtkast] = useState<{ nr: number; verdier: string[] } | null>(null);
   const [sender, setSender] = useState(false);
   const [feil, setFeil] = useState<string | null>(null);
+  const buzzerSender = useRef(false);
+  // Feilmelding fra buzzeren gjelder bare spørsmålet den kom på.
+  const [buzzFeil, setBuzzFeil] = useState<{ nr: number; tekst: string } | null>(null);
 
   // Laget slettes, så ingen venter på det. Etter at quizen er avsluttet blir det stående på resultatlisten.
   const forlat = useCallback(async () => {
@@ -77,6 +80,21 @@ export default function SpillPage() {
     setSender(false);
   }
 
+  async function trykk() {
+    if (!lag || buzzerSender.current) return;
+    buzzerSender.current = true;
+    navigator.vibrate?.(80);
+    setSender(true);
+    setBuzzFeil(null);
+    const { error } = await createClient().rpc("buzz", { p_team_id: lag.teamId, p_secret: lag.secret });
+    if (error) setBuzzFeil({ nr, tekst: error.message });
+    await hent(lag);
+    setSender(false);
+    buzzerSender.current = false;
+  }
+
+  const buzzer = tilstand.answer_mode === "buzzer";
+
   return (
     <Ramme lagnavn={tilstand.team_name} onForlat={forlat}>
       {tilstand.status === "lobby" && (
@@ -86,7 +104,16 @@ export default function SpillPage() {
         </div>
       )}
 
-      {(tilstand.status === "question" || tilstand.status === "locked") && (
+      {buzzer && (tilstand.status === "question" || tilstand.status === "locked") && (
+        <Buzzer
+          tilstand={tilstand}
+          sender={sender}
+          feil={buzzFeil?.nr === nr ? buzzFeil.tekst : null}
+          onTrykk={trykk}
+        />
+      )}
+
+      {!buzzer && (tilstand.status === "question" || tilstand.status === "locked") && (
         <div className="flex w-full flex-col gap-6">
           <div className="flex flex-col gap-2">
             <p className="text-sm text-zinc-500">
@@ -196,6 +223,117 @@ export default function SpillPage() {
         </div>
       )}
     </Ramme>
+  );
+}
+
+function Buzzer({
+  tilstand,
+  sender,
+  feil,
+  onTrykk,
+}: {
+  tilstand: Deltakertilstand;
+  sender: boolean;
+  feil: string | null;
+  onTrykk: () => void;
+}) {
+  const mitt = tilstand.my_buzz;
+  const åpen = tilstand.status === "question" && !tilstand.buzz_holder && !mitt;
+  const rund = "flex aspect-square w-full max-w-xs flex-col items-center justify-center gap-2 rounded-full p-8 text-center";
+
+  return (
+    <div className="flex w-full flex-1 flex-col items-center justify-between gap-6">
+      <div className="flex w-full flex-col gap-1 text-center">
+        <p className="text-sm text-zinc-500">
+          Spørsmål {tilstand.number} av {tilstand.total}
+          {tilstand.round_title && ` · ${tilstand.round_title}`}
+        </p>
+        {tilstand.prompt && <p className="font-semibold">{tilstand.prompt}</p>}
+      </div>
+
+      {tilstand.status === "locked" ? (
+        <BuzzerFasit tilstand={tilstand} />
+      ) : mitt === "holding" ? (
+        <div className={`${rund} animate-pulse bg-green-600 text-white`}>
+          <span className="text-5xl">🔔</span>
+          <span className="text-3xl font-black">Dere svarer!</span>
+          <span className="text-lg">Si svaret høyt</span>
+        </div>
+      ) : mitt === "wrong" ? (
+        <div className={`${rund} bg-zinc-200 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400`}>
+          <span className="text-5xl">✗</span>
+          <span className="text-2xl font-bold">Feil svar</span>
+          <span>Dere er ute av dette spørsmålet</span>
+        </div>
+      ) : tilstand.buzz_holder ? (
+        <div className={`${rund} bg-zinc-200 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400`}>
+          <span className="text-5xl">🔔</span>
+          <span className="text-2xl font-bold">{tilstand.buzz_holder}</span>
+          <span>svarer nå …</span>
+        </div>
+      ) : (
+        <button
+          type="button"
+          disabled={!åpen || sender}
+          // pointerdown i stedet for click: reagerer med en gang fingeren treffer skjermen.
+          onPointerDown={(e) => {
+            e.preventDefault();
+            onTrykk();
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              onTrykk();
+            }
+          }}
+          className={`${rund} touch-manipulation select-none bg-red-600 text-5xl font-black tracking-wide text-white shadow-[0_14px_0_0_#7f1d1d] transition-transform active:translate-y-3 active:shadow-[0_2px_0_0_#7f1d1d] disabled:translate-y-3 disabled:shadow-[0_2px_0_0_#7f1d1d]`}
+        >
+          {sender ? "…" : "TRYKK!"}
+        </button>
+      )}
+
+      <div className="flex min-h-12 flex-col items-center gap-1 text-center text-sm text-zinc-500">
+        {feil && <p className="font-semibold text-red-600">{feil}</p>}
+        {tilstand.status === "question" && !!tilstand.buzz_out?.length && (
+          <p>✗ Svarte feil: {tilstand.buzz_out.join(", ")}</p>
+        )}
+        {åpen && <p>Først til å trykke får svare høyt.</p>}
+      </div>
+    </div>
+  );
+}
+
+function BuzzerFasit({ tilstand }: { tilstand: Deltakertilstand }) {
+  const parts = tilstand.parts ?? [];
+  const vant = tilstand.my_buzz === "correct";
+  const poeng = (tilstand.my_points ?? []).reduce((n, p) => n + p, 0);
+  return (
+    <div className="flex w-full flex-col gap-3 rounded-lg bg-zinc-100 px-4 py-4 text-center dark:bg-zinc-900">
+      <p className="text-2xl font-bold">
+        {vant
+          ? `🎉 Riktig! +${poeng} p`
+          : tilstand.buzz_winner
+            ? `🏆 ${tilstand.buzz_winner} svarte riktig`
+            : "Ingen svarte riktig"}
+      </p>
+      {tilstand.image_url && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={tilstand.image_url} alt="" className="max-h-48 w-full rounded-lg object-contain" />
+      )}
+      <ul className="flex flex-col gap-1">
+        {tilstand.correct?.map((riktig, i) => (
+          <li key={i} className="flex flex-col">
+            {parts.length > 1 && <span className="text-xs text-zinc-500">{parts[i]?.label}</span>}
+            <span className="text-lg font-semibold">{riktig}</span>
+          </li>
+        ))}
+      </ul>
+      {tilstand.my_total != null && (
+        <p className="border-t border-zinc-200 pt-2 text-sm text-zinc-500 dark:border-zinc-800">
+          Dere har <strong className="text-zinc-900 dark:text-zinc-100">{tilstand.my_total} poeng</strong> så langt
+        </p>
+      )}
+    </div>
   );
 }
 

@@ -3,11 +3,13 @@ import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { requireSpillmester } from "@/lib/supabase/server";
 import { msTilTid } from "@/lib/tid";
-import type { Lag, Spill, Sporsmal, Svar } from "@/lib/typer";
+import type { Buzz, Lag, Spill, Sporsmal, Svar } from "@/lib/typer";
 import { Knapp } from "@/components/skjema";
 import { fasitTekst, poengSum } from "@/lib/svarfelt";
 import {
+  angreBuzz,
   avsluttSpill,
+  dommBuzz,
   fjernLag,
   lasHvisUtlopt,
   lasSvar,
@@ -16,6 +18,7 @@ import {
   startKlokke,
 } from "@/app/quizer/spill-actions";
 import { AvspillKnapp } from "@/components/spotify/avspill-knapp";
+import { BuzzerMusikk } from "./buzzer-musikk";
 import { LiveOppdatering } from "./live-oppdatering";
 import { Nedtelling } from "@/components/nedtelling";
 import { QrKode } from "@/components/qr-kode";
@@ -33,7 +36,8 @@ export default async function SpillPage({ params }: PageProps<"/quizer/[quizId]/
   if (!spill) notFound();
 
   const questionId = spill.question_ids[spill.current_index];
-  const [{ data: lag }, { data: svar }, { data: sporsmal }] = await Promise.all([
+  const buzzer = spill.answer_mode === "buzzer";
+  const [{ data: lag }, { data: svar }, { data: sporsmal }, { data: buzzes }] = await Promise.all([
     supabase.from("teams").select("*").eq("game_id", spillId).order("created_at").returns<Lag[]>(),
     supabase.from("answers").select("*").eq("game_id", spillId).returns<Svar[]>(),
     questionId
@@ -42,6 +46,15 @@ export default async function SpillPage({ params }: PageProps<"/quizer/[quizId]/
           .select("*, rounds(title)")
           .eq("id", questionId)
           .maybeSingle<Sporsmal & { rounds: { title: string } }>()
+      : Promise.resolve({ data: null }),
+    buzzer && questionId
+      ? supabase
+          .from("buzzes")
+          .select("*")
+          .eq("game_id", spillId)
+          .eq("question_id", questionId)
+          .order("buzzed_at")
+          .returns<Buzz[]>()
       : Promise.resolve({ data: null }),
   ]);
 
@@ -75,12 +88,22 @@ export default async function SpillPage({ params }: PageProps<"/quizer/[quizId]/
     ...alleLag.filter((l) => !svarNå.has(l.id)).map((l) => ({ lag: l, svar: undefined })),
   ].filter((r) => r.lag);
 
+  // Buzzer: laget som svarer nå, og lagene som har svart feil.
+  const lagNavn = (id: string) => alleLag.find((l) => l.id === id)?.name ?? "Ukjent lag";
+  const svarer = buzzes?.find((b) => b.result === null) ?? null;
+  const ute = (buzzes ?? []).filter((b) => b.result === "wrong");
+  const sisteDom = (buzzes ?? [])
+    .filter((b) => b.result !== null)
+    .sort((a, b) => (b.judged_at ?? b.buzzed_at).localeCompare(a.judged_at ?? a.buzzed_at))[0];
+  const visteRader = buzzer ? lagRader.filter((r) => r.svar) : lagRader;
+
   const neste = nesteSporsmal.bind(null, quizId, spillId, spill.current_index);
   const avslutt = avsluttSpill.bind(null, quizId, spillId);
 
   return (
     <div className="flex flex-col gap-8">
       <LiveOppdatering kode={spill.code} />
+      {buzzer && <BuzzerMusikk svarer={svarer?.id ?? null} åpen={spill.status === "question"} />}
 
       <div className="flex flex-col gap-2">
         <Link href={`/quizer/${quizId}`} className="text-sm text-zinc-500 hover:underline">
@@ -124,7 +147,7 @@ export default async function SpillPage({ params }: PageProps<"/quizer/[quizId]/
               Spørsmål {nr} av {totalt}
               {sporsmal?.rounds && ` · ${sporsmal.rounds.title}`}
             </p>
-            {spill.status === "question" && !spill.question_started_at && (
+            {spill.status === "question" && !spill.question_started_at && !buzzer && (
               <form action={startKlokke.bind(null, quizId, spillId)} className="flex items-center gap-2">
                 <span className="text-sm text-zinc-500">
                   {spill.time_limit_seconds ? "Nedtellingen" : "Klokken"} starter når du spiller låten
@@ -195,71 +218,125 @@ export default async function SpillPage({ params }: PageProps<"/quizer/[quizId]/
             <p className="text-red-600">Spørsmålet er slettet fra quizen. Gå videre til neste.</p>
           )}
 
-          <ul className="divide-y divide-zinc-200 rounded-lg border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
-            {lagRader.map(({ lag: l, svar: s }, plass) => (
-              <li key={l.id} className="flex flex-col gap-2 px-4 py-3">
-                <div className="flex items-center gap-3">
-                  <span className="flex-1 font-medium">
-                    {s && <span className="mr-2 text-sm text-zinc-500">{plass + 1}.</span>}
-                    {l.name}
-                  </span>
-                  {s ? (
-                    s.speed_bonus > 0 && (
-                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-300">
-                        ⚡ +{s.speed_bonus}
-                      </span>
-                    )
-                  ) : (
-                    <span className="text-sm text-zinc-400">
-                      {spill.status === "question" ? "venter …" : "svarte ikke"}
-                    </span>
-                  )}
+          {buzzer && (
+            <div className="flex flex-col gap-3">
+              {svarer ? (
+                <div className="flex flex-col items-center gap-4 rounded-xl bg-red-600 px-6 py-6 text-center text-white">
+                  <p className="text-3xl font-bold">🔔 {lagNavn(svarer.team_id)} trykket først!</p>
+                  <form className="flex flex-wrap justify-center gap-3">
+                    <button
+                      formAction={dommBuzz.bind(null, quizId, spillId, svarer.id, true)}
+                      className="rounded-lg bg-white px-6 py-3 text-lg font-bold text-green-700 hover:bg-green-50"
+                    >
+                      ✓ Riktig{sporsmal && ` (+${poengSum(sporsmal.parts)} p)`}
+                    </button>
+                    <button
+                      formAction={dommBuzz.bind(null, quizId, spillId, svarer.id, false)}
+                      className="rounded-lg border-2 border-white px-6 py-3 text-lg font-bold hover:bg-red-700"
+                    >
+                      ✗ Feil
+                    </button>
+                  </form>
+                  <p className="text-sm opacity-80">Musikken pauses mens de svarer. Ved feil åpnes buzzeren igjen for de andre.</p>
                 </div>
-                {s &&
-                  s.answer_values.map((verdi, i) => {
-                    const felt = sporsmal?.parts[i];
-                    const poeng = s.part_points?.[i];
-                    return (
-                      <div key={i} className="flex flex-wrap items-center gap-2 pl-6 text-sm">
-                        {sporsmal && sporsmal.parts.length > 1 && (
-                          <span className="w-20 text-zinc-500">{felt?.label}</span>
-                        )}
-                        <span className="flex-1">{verdi}</span>
-                        {spill.status === "locked" && felt && (
-                          <form className="flex gap-1">
-                            <Knapp
-                              variant={poeng ? "primær" : "sekundær"}
-                              formAction={settPoeng.bind(null, quizId, spillId, s.id, i, felt.points)}
-                              aria-label={`${felt.label} riktig`}
-                            >
-                              ✓
-                            </Knapp>
-                            <Knapp
-                              variant={poeng === 0 ? "primær" : "sekundær"}
-                              formAction={settPoeng.bind(null, quizId, spillId, s.id, i, 0)}
-                              aria-label={`${felt.label} feil`}
-                            >
-                              ✗
-                            </Knapp>
-                          </form>
-                        )}
-                      </div>
-                    );
-                  })}
-              </li>
-            ))}
-          </ul>
+              ) : (
+                spill.status === "question" && (
+                  <p className="rounded-xl border-2 border-dashed border-zinc-300 px-6 py-6 text-center text-zinc-500 dark:border-zinc-700">
+                    🔔 Buzzeren er åpen – venter på at noen trykker …
+                  </p>
+                )
+              )}
+              {ute.length > 0 && (
+                <p className="text-sm text-zinc-500">
+                  ✗ Svarte feil: {ute.map((b) => lagNavn(b.team_id)).join(", ")}
+                </p>
+              )}
+              {spill.status === "locked" && visteRader.length === 0 && !svarer && (
+                <p className="text-sm text-zinc-500">Ingen fikk poeng på dette spørsmålet.</p>
+              )}
+              {sisteDom && (
+                <form action={angreBuzz.bind(null, quizId, spillId)}>
+                  <Knapp variant="sekundær">
+                    ↩ Angre «{sisteDom.result === "correct" ? "Riktig" : "Feil"}» for {lagNavn(sisteDom.team_id)}
+                  </Knapp>
+                </form>
+              )}
+            </div>
+          )}
+
+          {visteRader.length > 0 && (
+            <ul className="divide-y divide-zinc-200 rounded-lg border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
+              {visteRader.map(({ lag: l, svar: s }, plass) => (
+                <li key={l.id} className="flex flex-col gap-2 px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <span className="flex-1 font-medium">
+                      {s && <span className="mr-2 text-sm text-zinc-500">{plass + 1}.</span>}
+                      {l.name}
+                    </span>
+                    {s ? (
+                      s.speed_bonus > 0 && (
+                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                          ⚡ +{s.speed_bonus}
+                        </span>
+                      )
+                    ) : (
+                      <span className="text-sm text-zinc-400">
+                        {spill.status === "question" ? "venter …" : "svarte ikke"}
+                      </span>
+                    )}
+                  </div>
+                  {s &&
+                    s.answer_values.map((verdi, i) => {
+                      const felt = sporsmal?.parts[i];
+                      const poeng = s.part_points?.[i];
+                      return (
+                        <div key={i} className="flex flex-wrap items-center gap-2 pl-6 text-sm">
+                          {sporsmal && sporsmal.parts.length > 1 && (
+                            <span className="w-20 text-zinc-500">{felt?.label}</span>
+                          )}
+                          <span className="flex-1">{verdi}</span>
+                          {spill.status === "locked" && felt && (
+                            <form className="flex gap-1">
+                              <Knapp
+                                variant={poeng ? "primær" : "sekundær"}
+                                formAction={settPoeng.bind(null, quizId, spillId, s.id, i, felt.points)}
+                                aria-label={`${felt.label} riktig`}
+                              >
+                                ✓
+                              </Knapp>
+                              <Knapp
+                                variant={poeng === 0 ? "primær" : "sekundær"}
+                                formAction={settPoeng.bind(null, quizId, spillId, s.id, i, 0)}
+                                aria-label={`${felt.label} feil`}
+                              >
+                                ✗
+                              </Knapp>
+                            </form>
+                          )}
+                        </div>
+                      );
+                    })}
+                </li>
+              ))}
+            </ul>
+          )}
 
           {spill.status === "question" ? (
             <form action={lasSvar.bind(null, quizId, spillId)}>
-              <Knapp>
-                Lås svar nå ({svarNå.size} av {alleLag.length} lag har låst)
-              </Knapp>
+              {buzzer ? (
+                <Knapp variant="sekundær">Vis fasit (ingen får poeng)</Knapp>
+              ) : (
+                <Knapp>
+                  Lås svar nå ({svarNå.size} av {alleLag.length} lag har låst)
+                </Knapp>
+              )}
             </form>
           ) : (
             <div className="flex flex-col gap-2">
               <p className="text-sm text-zinc-500">
-                Svar som er like fasiten er rettet automatisk (små skrivefeil i fritekst godtas). Juster med ✓/✗ om nødvendig.
+                {buzzer
+                  ? "Riktig på buzzeren gir poeng for alle svarfeltene. Juster med ✓/✗ hvis laget bare hadde deler riktig."
+                  : "Svar som er like fasiten er rettet automatisk (små skrivefeil i fritekst godtas). Juster med ✓/✗ om nødvendig."}
                 {spill.speed_bonus &&
                   (spill.time_limit_seconds
                     ? " ⚡ Lag med alt riktig får opptil +3 i hurtighetspoeng, mer jo raskere de låste."

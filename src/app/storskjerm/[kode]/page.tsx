@@ -77,6 +77,8 @@ function Innhold({ t, bliMedUrl, vedNull }: { t: Storskjermtilstand; bliMedUrl: 
     );
   }
 
+  const buzzer = t.answer_mode === "buzzer";
+
   return (
     <div className="flex flex-1 flex-col gap-[3vh]">
       <header className="flex items-center justify-between gap-6 text-2xl text-zinc-400">
@@ -126,6 +128,16 @@ function Innhold({ t, bliMedUrl, vedNull }: { t: Storskjermtilstand; bliMedUrl: 
               )}
             </div>
           )}
+          {buzzer && t.buzz_holder && (
+            <p className="animate-pulse self-start rounded-2xl bg-red-600 px-8 py-4 text-[3.5vw] font-black leading-tight">
+              🔔 {t.buzz_holder} svarer!
+            </p>
+          )}
+          {buzzer && t.status === "locked" && (
+            <p className="text-4xl font-semibold text-amber-400">
+              {t.buzz_winner ? `🏆 ${t.buzz_winner} svarte riktig` : "Ingen svarte riktig"}
+            </p>
+          )}
           {t.status === "locked" &&
             (t.correct ? (
               <div className="flex flex-wrap gap-x-10 gap-y-3">
@@ -147,7 +159,33 @@ function Innhold({ t, bliMedUrl, vedNull }: { t: Storskjermtilstand; bliMedUrl: 
       </div>
 
       <footer className="flex items-end justify-between gap-6">
-        {t.status === "question" ? (
+        {t.status === "question" && buzzer ? (
+          <div className="flex flex-col gap-3">
+            <span className="text-2xl text-zinc-400">
+              {t.buzz_holder ? "Buzzeren er tatt" : "🔔 Først til å trykke får svare"}
+            </span>
+            <ul className="flex flex-wrap gap-3">
+              {t.teams.map((l) => {
+                const ute = t.buzz_out?.includes(l.name);
+                return (
+                  <li
+                    key={l.name}
+                    className={`rounded-full px-5 py-2 text-2xl font-semibold transition-colors ${
+                      l.name === t.buzz_holder
+                        ? "bg-red-600"
+                        : ute
+                          ? "bg-zinc-900 text-zinc-600 line-through"
+                          : "bg-zinc-800 text-zinc-300"
+                    }`}
+                  >
+                    {ute && "✗ "}
+                    {l.name}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ) : t.status === "question" ? (
           <div className="flex flex-col gap-3">
             <span className="text-2xl text-zinc-400">
               {t.answered ?? 0} av {t.teams.length} lag har låst

@@ -26,7 +26,7 @@ export default async function QuizPage({ params }: PageProps<"/quizer/[quizId]">
 
   const { data: quiz } = await supabase
     .from("quizzes")
-    .select("id, title, created_at, time_limit_seconds, speed_bonus")
+    .select("id, title, created_at, time_limit_seconds, speed_bonus, answer_mode")
     .eq("id", quizId)
     .maybeSingle<Quiz>();
   if (!quiz) notFound();
@@ -66,6 +66,17 @@ export default async function QuizPage({ params }: PageProps<"/quizer/[quizId]">
 
       <section className="flex flex-col gap-3 rounded-lg bg-violet-50 p-4 dark:bg-violet-950/40">
         <form action={endreInnstillinger.bind(null, quizId)} className="flex flex-wrap items-end gap-4">
+          <label className="flex flex-col gap-1 text-sm font-medium">
+            Svarmåte
+            <select
+              name="svarmate"
+              defaultValue={quiz.answer_mode}
+              className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-base text-zinc-900 focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-200 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:focus:ring-violet-900"
+            >
+              <option value="typed">Lagene skriver svaret på mobilen</option>
+              <option value="buzzer">Buzzer: første som trykker svarer høyt</option>
+            </select>
+          </label>
           <Felt
             label="Nedtelling per spørsmål (sek)"
             name="tid"
@@ -83,7 +94,9 @@ export default async function QuizPage({ params }: PageProps<"/quizer/[quizId]">
           <Knapp variant="sekundær">Lagre innstillinger</Knapp>
         </form>
         <p className="text-xs text-zinc-500">
-          Spørsmålet låses når du trykker «Lås svar», når alle lag har låst, eller når nedtellingen er ute.
+          {quiz.answer_mode === "buzzer"
+            ? "Med buzzer er mobilen én stor knapp. Laget som trykker først svarer høyt, og du trykker Riktig eller Feil. Ved feil åpnes buzzeren igjen for de andre. Nedtelling og hurtighetspoeng brukes ikke."
+            : "Spørsmålet låses når du trykker «Lås svar», når alle lag har låst, eller når nedtellingen er ute."}
         </p>
         <form action={startSpill.bind(null, quizId)} className="flex flex-wrap items-center gap-3">
           <Knapp disabled={antallSporsmal === 0}>▶ Start live-quiz</Knapp>

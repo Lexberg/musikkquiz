@@ -7,7 +7,11 @@ export type Quiz = {
   /** Nedtelling per spørsmål; null = ingen. */
   time_limit_seconds: number | null;
   speed_bonus: boolean;
+  answer_mode: Svarmate;
 };
+
+/** «typed» = lagene skriver svaret på mobilen, «buzzer» = første som trykker svarer høyt. */
+export type Svarmate = "typed" | "buzzer";
 
 export type Runde = {
   id: string;
@@ -43,6 +47,7 @@ export type Spill = {
   current_index: number;
   time_limit_seconds: number | null;
   speed_bonus: boolean;
+  answer_mode: Svarmate;
   /** Når klokken startet for gjeldende spørsmål; null til låten spilles. */
   question_started_at: string | null;
   question_deadline: string | null;
@@ -69,18 +74,41 @@ export type Svar = {
   submitted_at: string;
 };
 
+export type Buzz = {
+  id: string;
+  team_id: string;
+  question_id: string;
+  /** null = laget svarer nå. */
+  result: "correct" | "wrong" | null;
+  buzzed_at: string;
+  judged_at: string | null;
+};
+
+/** Buzzer-status for gjeldende spørsmål, i buzzer-modus. */
+export type Buzzerstatus = {
+  /** Laget som har buzzeren og svarer nå. */
+  buzz_holder?: string | null;
+  /** Laget som svarte riktig. */
+  buzz_winner?: string | null;
+  /** Lag som svarte feil og er ute av spørsmålet. */
+  buzz_out?: string[];
+};
+
 /** Det deltakerne får fra game_state(). Inneholder aldri fasit eller låt. */
-export type Deltakertilstand = {
+export type Deltakertilstand = Buzzerstatus & {
   code: string;
   status: SpillStatus;
   team_name: string;
   number: number;
   total: number;
   speed_bonus: boolean;
+  answer_mode: Svarmate;
   prompt?: string;
   round_title?: string;
   parts?: { label: string; choices?: string[] }[];
   image_url?: string | null;
+  /** Lagets egen buzzer-status: «holding» = svarer nå. */
+  my_buzz?: "holding" | "correct" | "wrong" | null;
   my_answer?: string[] | null;
   answered?: number;
   teams?: number;
@@ -96,12 +124,13 @@ export type Deltakertilstand = {
 };
 
 /** Det storskjermen får fra screen_state(). Kan vises for alle; aldri fasit eller låt. */
-export type Storskjermtilstand = {
+export type Storskjermtilstand = Buzzerstatus & {
   code: string;
   status: SpillStatus;
   number: number;
   total: number;
   speed_bonus: boolean;
+  answer_mode: Svarmate;
   teams: { name: string; points: number; locked: boolean }[];
   prompt?: string;
   round_title?: string;

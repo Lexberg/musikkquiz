@@ -26,6 +26,8 @@ export type Avspilling = {
   startMs: number;
   endMs: number;
   posisjonMs: number;
+  /** Satt på pause med pause(), kan fortsette med fortsett(). */
+  pauset?: boolean;
 };
 
 type SpotifyKontekst = {
@@ -37,6 +39,10 @@ type SpotifyKontekst = {
   /** Spiller avsnittet; true hvis avspillingen startet. */
   spill: (trackId: string, startMs: number, endMs: number) => Promise<boolean>;
   stopp: () => void;
+  /** Pauser avsnittet som spilles, uten å avslutte det. */
+  pause: () => void;
+  /** Fortsetter et avsnitt som er satt på pause. */
+  fortsett: () => void;
 };
 
 const Kontekst = createContext<SpotifyKontekst | null>(null);
@@ -70,6 +76,9 @@ export function SpotifyProvider({ children }: { children: React.ReactNode }) {
   const spiller = useRef<Spotify.Player | null>(null);
   const enhetId = useRef<string | null>(null);
   const overvåker = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Pause fra pause() skal ikke tolkes som at avsnittet er ferdig.
+  const pauset = useRef(false);
+  const harSpilt = useRef(false);
   // De som venter på at spilleren skal bli klar (ny enhets-ID).
   const venterPåKlar = useRef<((id: string) => void)[]>([]);
 
@@ -136,9 +145,25 @@ export function SpotifyProvider({ children }: { children: React.ReactNode }) {
 
   const stopp = useCallback(() => {
     stoppOvervåking();
+    pauset.current = false;
     spiller.current?.pause();
     setAvspilling(null);
   }, [stoppOvervåking]);
+
+  const pause = useCallback(() => {
+    if (!overvåker.current || pauset.current) return;
+    pauset.current = true;
+    spiller.current?.pause();
+    setAvspilling((a) => (a ? { ...a, pauset: true } : a));
+  }, []);
+
+  const fortsett = useCallback(() => {
+    if (!overvåker.current || !pauset.current) return;
+    pauset.current = false;
+    harSpilt.current = false;
+    spiller.current?.resume();
+    setAvspilling((a) => (a ? { ...a, pauset: false } : a));
+  }, []);
 
   /** Venter på neste «ready» fra spilleren, maks `ms`. */
   const ventPåEnhet = useCallback(
@@ -211,12 +236,13 @@ export function SpotifyProvider({ children }: { children: React.ReactNode }) {
       }
 
       setAvspilling({ trackId, startMs, endMs, posisjonMs: startMs });
-      let harSpilt = false;
+      pauset.current = false;
+      harSpilt.current = false;
       overvåker.current = setInterval(async () => {
         const state = await p.getCurrentState();
-        if (!state) return;
-        if (!state.paused) harSpilt = true;
-        if (state.position >= endMs || (harSpilt && state.paused)) {
+        if (!state || pauset.current) return;
+        if (!state.paused) harSpilt.current = true;
+        if (state.position >= endMs || (harSpilt.current && state.paused)) {
           stoppOvervåking();
           if (!state.paused) p.pause();
           setAvspilling(null);
@@ -235,8 +261,8 @@ export function SpotifyProvider({ children }: { children: React.ReactNode }) {
   }, [stopp]);
 
   const verdi = useMemo(
-    () => ({ status, feil, avspilling, loggInn: loggInnSpotify, loggUt, spill, stopp }),
-    [status, feil, avspilling, loggUt, spill, stopp],
+    () => ({ status, feil, avspilling, loggInn: loggInnSpotify, loggUt, spill, stopp, pause, fortsett }),
+    [status, feil, avspilling, loggUt, spill, stopp, pause, fortsett],
   );
 
   return <Kontekst.Provider value={verdi}>{children}</Kontekst.Provider>;

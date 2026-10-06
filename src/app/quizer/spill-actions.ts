@@ -23,7 +23,7 @@ function spillSti(quizId: string, spillId: string) {
 export async function startSpill(quizId: string) {
   const supabase = await requireSpillmester();
   const [{ data: quiz }, { data: runder }] = await Promise.all([
-    supabase.from("quizzes").select("time_limit_seconds, speed_bonus").eq("id", quizId).single(),
+    supabase.from("quizzes").select("time_limit_seconds, speed_bonus, answer_mode").eq("id", quizId).single(),
     supabase
       .from("rounds")
       .select("position, questions(id, position)")
@@ -35,6 +35,8 @@ export async function startSpill(quizId: string) {
 
   const questionIds = (runder ?? []).flatMap((r) => r.questions.map((q) => q.id));
   if (!quiz || questionIds.length === 0) return;
+  // Med buzzer er det først-til-mølla som teller, så nedtelling og hurtighetspoeng brukes ikke.
+  const buzzer = quiz.answer_mode === "buzzer";
 
   // Koden er unik blant aktive spill; prøv på nytt ved kollisjon.
   for (let forsøk = 0; forsøk < 5; forsøk++) {
@@ -44,8 +46,9 @@ export async function startSpill(quizId: string) {
         quiz_id: quizId,
         code: lagKode(),
         question_ids: questionIds,
-        time_limit_seconds: quiz.time_limit_seconds,
-        speed_bonus: quiz.speed_bonus,
+        time_limit_seconds: buzzer ? null : quiz.time_limit_seconds,
+        speed_bonus: buzzer ? false : quiz.speed_bonus,
+        answer_mode: quiz.answer_mode,
       })
       .select("id")
       .single();
@@ -99,6 +102,20 @@ export async function settPoeng(
       p_points: poeng,
     }),
   );
+  revalidatePath(spillSti(quizId, spillId));
+}
+
+/** Buzzer: laget som trykket svarte riktig (får poengene, svarene låses) eller feil (buzzeren åpnes igjen). */
+export async function dommBuzz(quizId: string, spillId: string, buzzId: string, riktig: boolean) {
+  const supabase = await requireSpillmester();
+  sjekk(await supabase.rpc("host_judge_buzz", { p_buzz_id: buzzId, p_correct: riktig }));
+  revalidatePath(spillSti(quizId, spillId));
+}
+
+/** Buzzer: angrer siste Riktig/Feil på gjeldende spørsmål. */
+export async function angreBuzz(quizId: string, spillId: string) {
+  const supabase = await requireSpillmester();
+  sjekk(await supabase.rpc("host_undo_buzz", { p_game_id: spillId }));
   revalidatePath(spillSti(quizId, spillId));
 }
 

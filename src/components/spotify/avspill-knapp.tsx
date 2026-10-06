@@ -16,7 +16,7 @@ type Props = {
 };
 
 export function AvspillKnapp({ avsnitt, tekst = "▶ Spill avsnitt", vedStart }: Props) {
-  const { status, feil: spotifyFeil, avspilling, loggInn, spill, stopp } = useSpotify();
+  const { status, feil: spotifyFeil, avspilling, loggInn, spill, stopp, fortsett } = useSpotify();
   const [skjemaFeil, setSkjemaFeil] = useState<string | null>(null);
   const feil = skjemaFeil ?? spotifyFeil;
 
@@ -65,7 +65,14 @@ export function AvspillKnapp({ avsnitt, tekst = "▶ Spill avsnitt", vedStart }:
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-3">
         {spillerDenne ? (
-          <Knapp type="button" onClick={stopp}>■ Stopp</Knapp>
+          <>
+            {avspilling.pauset && (
+              <Knapp type="button" onClick={fortsett}>▶ Fortsett</Knapp>
+            )}
+            <Knapp type="button" variant={avspilling.pauset ? "sekundær" : "primær"} onClick={stopp}>
+              ■ Stopp
+            </Knapp>
+          </>
         ) : (
           <Knapp type="button" onClick={start} disabled={status !== "klar"}>
             {status === "klar" ? tekst : status === "kobler" ? "Kobler til Spotify …" : tekst}
