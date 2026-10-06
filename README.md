@@ -49,16 +49,25 @@ og må ha Spotify Premium.
 4. Kopier **Client ID** til `.env.local` (og Vercel) som `NEXT_PUBLIC_SPOTIFY_CLIENT_ID`,
    og start `npm run dev` på nytt.
 
-## AI-oppsett (Anthropic)
+## AI-oppsett (Anthropic eller Gemini)
 
-AI-genereringen kaller Claude direkte med Anthropic SDK.
+AI-genereringen kan bruke Claude (Anthropic) eller Google Gemini. Legg nøklene i `.env.local` og i
+Vercel (**Settings -> Environment Variables**). Sett `AI_PROVIDER` til `anthropic` eller `gemini`
+for å velge. Uten den brukes Anthropic hvis `ANTHROPIC_API_KEY` er satt, ellers Gemini.
+
+**Anthropic**
 
 1. Lag en API-nøkkel på [console.anthropic.com](https://console.anthropic.com) og fyll på kreditt
    under **Billing**. Sett gjerne en månedlig grense.
-2. Legg nøkkelen i `.env.local` og i Vercel (**Settings -> Environment Variables**) som
-   `ANTHROPIC_API_KEY`.
-3. Modellen er `claude-opus-5-5`. Velg en annen med miljøvariabelen `ANTHROPIC_MODEL`,
-   f.eks. `claude-sonnet-5-5` (billigere).
+2. Legg nøkkelen inn som `ANTHROPIC_API_KEY`.
+3. Modellen er `claude-opus-5-5`. Velg en annen med `ANTHROPIC_MODEL`, f.eks. `claude-sonnet-5-5`
+   (billigere).
+
+**Gemini (har gratisnivå)**
+
+1. Lag en API-nøkkel på [aistudio.google.com/apikey](https://aistudio.google.com/apikey).
+2. Legg nøkkelen inn som `GEMINI_API_KEY`.
+3. Modellen er `gemini-3.5-flash`. Velg en annen med `GEMINI_MODEL`, f.eks. `gemini-3.1-pro-preview`.
 
 ## Registrering av spillmestere
 

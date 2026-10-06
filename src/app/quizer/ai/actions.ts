@@ -2,6 +2,7 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
+import { ApiError, FinishReason, GoogleGenAI } from "@google/genai";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireSpillmester } from "@/lib/supabase/server";
@@ -109,10 +110,18 @@ export type GenererSvar =
   | { ok: true; tittel: string; runder: { tittel: string; sporsmal: RaattSporsmal[] }[] }
   | { ok: false; feil: string };
 
-// Kaller Anthropic direkte med ANTHROPIC_API_KEY. Modellen kan byttes med ANTHROPIC_MODEL.
-const modell = process.env.ANTHROPIC_MODEL || "claude-opus-5-5";
+// AI_PROVIDER velger «anthropic» eller «gemini». Uten den brukes Anthropic hvis
+// ANTHROPIC_API_KEY er satt, ellers Gemini. Modellene kan byttes med ANTHROPIC_MODEL og GEMINI_MODEL.
+const claudeModell = process.env.ANTHROPIC_MODEL || "claude-opus-5-5";
+const geminiModell = process.env.GEMINI_MODEL || "gemini-3.5-flash";
 
-/** Gjør feil fra Anthropic om til en melding spillmesteren kan gjøre noe med. */
+function leverandør(): "anthropic" | "gemini" {
+  const valgt = process.env.AI_PROVIDER?.trim().toLowerCase();
+  if (valgt === "anthropic" || valgt === "gemini") return valgt;
+  return process.env.ANTHROPIC_API_KEY ? "anthropic" : "gemini";
+}
+
+/** Gjør feil fra Anthropic eller Gemini om til en melding spillmesteren kan gjøre noe med. */
 function feilmelding(e: unknown): string {
   if (e instanceof Anthropic.AuthenticationError) return "Anthropic avviste API-nøkkelen. Er ANTHROPIC_API_KEY satt riktig?";
   if (e instanceof Anthropic.PermissionDeniedError) return "API-nøkkelen har ikke tilgang til modellen.";
@@ -120,27 +129,61 @@ function feilmelding(e: unknown): string {
   if (e instanceof Anthropic.BadRequestError && /credit balance/i.test(e.message)) return "Anthropic-kreditten er brukt opp. Fyll på i console.anthropic.com.";
   if (e instanceof Anthropic.APIError) return `Anthropic svarte med feil${e.status ? ` (${e.status})` : ""}: ${e.message}`;
   if (e instanceof Anthropic.APIConnectionError) return "Fikk ikke kontakt med Anthropic. Prøv igjen.";
+  if (e instanceof ApiError) {
+    if (e.status === 400 && /api key/i.test(e.message)) return "Google avviste API-nøkkelen. Er GEMINI_API_KEY satt riktig?";
+    if (e.status === 401 || e.status === 403) return "API-nøkkelen har ikke tilgang til modellen.";
+    if (e.status === 404) return `Fant ikke modellen «${geminiModell}». Sjekk GEMINI_MODEL.`;
+    if (e.status === 429) return "Gratiskvoten hos Google er brukt opp for nå. Vent litt og prøv igjen.";
+    if (e.status >= 500) return "Gemini er overbelastet akkurat nå. Prøv igjen om litt.";
+    return `Gemini svarte med feil (${e.status}): ${e.message}`;
+  }
   return "Noe gikk galt med AI-genereringen. Prøv igjen.";
+}
+
+async function spørAi<T>(innhold: string, format: z.ZodType<T>): Promise<T | string> {
+  try {
+    return leverandør() === "anthropic" ? await spørClaude(innhold, format) : await spørGemini(innhold, format);
+  } catch (e) {
+    if (e instanceof SyntaxError) return "Fikk et uventet svar fra AI-en. Prøv igjen.";
+    console.error("AI-generering feilet", e);
+    return feilmelding(e);
+  }
 }
 
 async function spørClaude<T>(innhold: string, format: z.ZodType<T>): Promise<T | string> {
   if (!process.env.ANTHROPIC_API_KEY) return "ANTHROPIC_API_KEY mangler. Legg den inn i .env.local og i Vercel.";
-  try {
-    const svar = await new Anthropic().messages.parse({
-      model: modell,
-      max_tokens: 16000,
-      system,
-      messages: [{ role: "user", content: innhold }],
-      output_config: { effort: "medium", format: zodOutputFormat(format) },
-    });
-    if (svar.stop_reason === "max_tokens") return "Quizen ble for lang. Prøv færre spørsmål.";
-    if (svar.stop_reason === "refusal") return "AI-en ville ikke lage denne quizen. Prøv et annet tema.";
-    if (!svar.parsed_output) return "Fikk et uventet svar fra AI-en. Prøv igjen.";
-    return svar.parsed_output;
-  } catch (e) {
-    console.error("AI-generering feilet", e);
-    return feilmelding(e);
-  }
+  const svar = await new Anthropic().messages.parse({
+    model: claudeModell,
+    max_tokens: 16000,
+    system,
+    messages: [{ role: "user", content: innhold }],
+    output_config: { effort: "medium", format: zodOutputFormat(format) },
+  });
+  if (svar.stop_reason === "max_tokens") return "Quizen ble for lang. Prøv færre spørsmål.";
+  if (svar.stop_reason === "refusal") return "AI-en ville ikke lage denne quizen. Prøv et annet tema.";
+  if (!svar.parsed_output) return "Fikk et uventet svar fra AI-en. Prøv igjen.";
+  return svar.parsed_output;
+}
+
+async function spørGemini<T>(innhold: string, format: z.ZodType<T>): Promise<T | string> {
+  if (!process.env.GEMINI_API_KEY) return "GEMINI_API_KEY mangler. Legg den inn i .env.local og i Vercel.";
+  const svar = await new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY }).models.generateContent({
+    model: geminiModell,
+    contents: innhold,
+    config: {
+      systemInstruction: system,
+      maxOutputTokens: 32000,
+      responseMimeType: "application/json",
+      responseJsonSchema: z.toJSONSchema(format),
+    },
+  });
+  const slutt = svar.candidates?.[0]?.finishReason;
+  if (slutt === FinishReason.MAX_TOKENS) return "Quizen ble for lang. Prøv færre spørsmål.";
+  if (svar.promptFeedback?.blockReason || slutt === FinishReason.SAFETY || slutt === FinishReason.PROHIBITED_CONTENT)
+    return "AI-en ville ikke lage denne quizen. Prøv et annet tema.";
+  const data = format.safeParse(JSON.parse(svar.text ?? ""));
+  if (!data.success) return "Fikk et uventet svar fra AI-en. Prøv igjen.";
+  return data.data;
 }
 
 export async function genererQuiz(input: GenererInput): Promise<GenererSvar> {
@@ -153,7 +196,7 @@ export async function genererQuiz(input: GenererInput): Promise<GenererSvar> {
   if (input.modus === "tema") {
     const tema = input.tema.trim().slice(0, 500);
     if (!tema) return { ok: false, feil: "Skriv et tema." };
-    const svar = await spørClaude(
+    const svar = await spørAi(
       `Lag en musikkquiz med temaet «${tema}»: ${runder} runder med ${perRunde} spørsmål hver, én låt per spørsmål. Bruk hver låt bare én gang, og velg kjente låter som finnes på Spotify.${ønsker}`,
       temaSvar,
     );
@@ -183,7 +226,7 @@ export async function genererQuiz(input: GenererInput): Promise<GenererSvar> {
     .map((l, i) => `${i + 1}. ${l.tittel} – ${l.artist} (album: ${l.album}, ${l.aar}, ${Math.round(l.varighetMs / 1000)} s)`)
     .join("\n");
   const antall = Math.min(runder * perRunde, later.length);
-  const svar = await spørClaude(
+  const svar = await spørAi(
     `Lag en musikkquiz fra spillelisten «${input.navn}». Lag ${runder} runder med til sammen ${antall} spørsmål (omtrent ${perRunde} per runde), én låt per spørsmål. Bruk bare låter fra listen, hver låt maks én gang, og oppgi låten med track_number.${ønsker}\n\nLåtene:\n${liste}`,
     spillelisteSvar,
   );
