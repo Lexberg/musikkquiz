@@ -1,6 +1,7 @@
 "use server";
 
-import { generateText, NoObjectGeneratedError, Output, RetryError } from "ai";
+import Anthropic from "@anthropic-ai/sdk";
+import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireSpillmester } from "@/lib/supabase/server";
@@ -108,35 +109,34 @@ export type GenererSvar =
   | { ok: true; tittel: string; runder: { tittel: string; sporsmal: RaattSporsmal[] }[] }
   | { ok: false; feil: string };
 
-// Går via Vercel AI Gateway: på Vercel logges appen inn automatisk (OIDC), lokalt med AI_GATEWAY_API_KEY.
-// Modellen kan byttes med AI_GATEWAY_MODEL, f.eks. til en modell som inngår i gratisnivået.
-const modell = process.env.AI_GATEWAY_MODEL || "anthropic/claude-opus-5.5";
+// Kaller Anthropic direkte med ANTHROPIC_API_KEY. Modellen kan byttes med ANTHROPIC_MODEL.
+const modell = process.env.ANTHROPIC_MODEL || "claude-opus-5-5";
 
-/** Gjør feil fra AI Gateway om til en melding spillmesteren kan gjøre noe med. */
+/** Gjør feil fra Anthropic om til en melding spillmesteren kan gjøre noe med. */
 function feilmelding(e: unknown): string {
-  const feil = RetryError.isInstance(e) ? e.lastError : e;
-  if (NoObjectGeneratedError.isInstance(feil)) return "Fikk et uventet svar fra AI-en. Prøv igjen.";
-  const status = (feil as { statusCode?: number }).statusCode;
-  const tekst = feil instanceof Error ? feil.message : "";
-  if (status === 401) return "AI Gateway avviste innloggingen. Er appen deployet på Vercel, eller er AI_GATEWAY_API_KEY satt?";
-  if (status === 402) return "AI Gateway-kreditten er brukt opp for denne måneden.";
-  if (status === 429) return "For mange forespørsler akkurat nå. Vent litt og prøv igjen.";
-  return `AI Gateway svarte med feil${status ? ` (${status})` : ""}${tekst ? `: ${tekst}` : ""}`;
+  if (e instanceof Anthropic.AuthenticationError) return "Anthropic avviste API-nøkkelen. Er ANTHROPIC_API_KEY satt riktig?";
+  if (e instanceof Anthropic.PermissionDeniedError) return "API-nøkkelen har ikke tilgang til modellen.";
+  if (e instanceof Anthropic.RateLimitError) return "For mange forespørsler akkurat nå. Vent litt og prøv igjen.";
+  if (e instanceof Anthropic.BadRequestError && /credit balance/i.test(e.message)) return "Anthropic-kreditten er brukt opp. Fyll på i console.anthropic.com.";
+  if (e instanceof Anthropic.APIError) return `Anthropic svarte med feil${e.status ? ` (${e.status})` : ""}: ${e.message}`;
+  if (e instanceof Anthropic.APIConnectionError) return "Fikk ikke kontakt med Anthropic. Prøv igjen.";
+  return "Noe gikk galt med AI-genereringen. Prøv igjen.";
 }
 
 async function spørClaude<T>(innhold: string, format: z.ZodType<T>): Promise<T | string> {
+  if (!process.env.ANTHROPIC_API_KEY) return "ANTHROPIC_API_KEY mangler. Legg den inn i .env.local og i Vercel.";
   try {
-    const { output, finishReason } = await generateText({
+    const svar = await new Anthropic().messages.parse({
       model: modell,
-      instructions: system,
-      prompt: innhold,
-      output: Output.object({ schema: format }),
-      reasoning: "medium",
-      maxOutputTokens: 16000,
+      max_tokens: 16000,
+      system,
+      messages: [{ role: "user", content: innhold }],
+      output_config: { effort: "medium", format: zodOutputFormat(format) },
     });
-    if (finishReason === "length") return "Quizen ble for lang. Prøv færre spørsmål.";
-    if (finishReason === "content-filter") return "AI-en ville ikke lage denne quizen. Prøv et annet tema.";
-    return output;
+    if (svar.stop_reason === "max_tokens") return "Quizen ble for lang. Prøv færre spørsmål.";
+    if (svar.stop_reason === "refusal") return "AI-en ville ikke lage denne quizen. Prøv et annet tema.";
+    if (!svar.parsed_output) return "Fikk et uventet svar fra AI-en. Prøv igjen.";
+    return svar.parsed_output;
   } catch (e) {
     console.error("AI-generering feilet", e);
     return feilmelding(e);

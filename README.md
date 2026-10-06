@@ -9,7 +9,7 @@ Deltakerne blir med på mobilen med en spillkode og svarer på spørsmålene.
 - Next.js (App Router, TypeScript, Tailwind)
 - Supabase (Postgres, innlogging, sanntid)
 - Spotify Web API + Web Playback SDK (spillmester må ha Premium)
-- Vercel AI Gateway (AI SDK) for AI-generering av quizer
+- Claude API (Anthropic SDK) for AI-generering av quizer
 - Hosting på Vercel
 
 ## Kom i gang (GitHub Codespaces)
@@ -49,19 +49,16 @@ og må ha Spotify Premium.
 4. Kopier **Client ID** til `.env.local` (og Vercel) som `NEXT_PUBLIC_SPOTIFY_CLIENT_ID`,
    og start `npm run dev` på nytt.
 
-## AI-oppsett (Vercel AI Gateway)
+## AI-oppsett (Anthropic)
 
-AI-genereringen går via [Vercel AI Gateway](https://vercel.com/docs/ai-gateway), som gir en
-månedlig gratiskreditt.
+AI-genereringen kaller Claude direkte med Anthropic SDK.
 
-1. Vercel-dashbordet: åpne **AI Gateway** for teamet. Gratiskreditten krever at teamet har et
-   registrert betalingskort.
-2. På Vercel logger appen seg inn automatisk (OIDC); ingen nøkkel trengs.
-3. Modellen er `anthropic/claude-opus-5.5`. Gratisnivået gjelder bare et utvalg modeller
-   (se [listen](https://vercel.com/ai-gateway/models?freeTier=true)); velg en annen med
-   miljøvariabelen `AI_GATEWAY_MODEL`, f.eks. `google/gemini-3.5-flash`.
-4. Lokalt: lag en nøkkel under **AI Gateway -> API Keys** og legg den i `.env.local` som
-   `AI_GATEWAY_API_KEY`.
+1. Lag en API-nøkkel på [console.anthropic.com](https://console.anthropic.com) og fyll på kreditt
+   under **Billing**. Sett gjerne en månedlig grense.
+2. Legg nøkkelen i `.env.local` og i Vercel (**Settings -> Environment Variables**) som
+   `ANTHROPIC_API_KEY`.
+3. Modellen er `claude-opus-5-5`. Velg en annen med miljøvariabelen `ANTHROPIC_MODEL`,
+   f.eks. `claude-sonnet-5-5` (billigere).
 
 ## Registrering av spillmestere
 
