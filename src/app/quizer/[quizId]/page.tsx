@@ -16,6 +16,7 @@ import {
   slettRunde,
 } from "../actions";
 import { startSpill } from "../spill-actions";
+import { SpillelisteImport } from "./spilleliste-import";
 
 type RundeMedSporsmal = Runde & { questions: Sporsmal[] };
 
@@ -163,6 +164,7 @@ export default async function QuizPage({ params }: PageProps<"/quizer/[quizId]">
         <Felt label="Ny runde" name="tittel" placeholder="F.eks. 80-tallet" required className="flex-1" />
         <Knapp>Legg til runde</Knapp>
       </form>
+      <SpillelisteImport quizId={quizId} />
 
       <form action={slettQuiz.bind(null, quizId)} className="border-t border-zinc-200 pt-6 dark:border-zinc-800">
         <Knapp variant="fare">Slett hele quizen</Knapp>

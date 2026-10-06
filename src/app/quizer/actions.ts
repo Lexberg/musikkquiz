@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireSpillmester } from "@/lib/supabase/server";
 import { tillattBildeUrl } from "@/lib/bilde";
-import { lagAlternativer, svarfeltListe } from "@/lib/svarfelt";
+import { lagAlternativer, svarfeltListe, vaskTittel, type Svarfelt } from "@/lib/svarfelt";
 import { spotifyTrackId, tidTilMs } from "@/lib/tid";
 
 type Supabase = Awaited<ReturnType<typeof requireSpillmester>>;
@@ -131,6 +131,78 @@ export async function slettRunde(quizId: string, rundeId: string) {
 
 export async function flyttRunde(quizId: string, rundeId: string, retning: "opp" | "ned") {
   await flytt("rounds", "quiz_id", quizId, rundeId, retning);
+}
+
+// Import av spilleliste
+
+export type Sporsmalstype = "begge" | "artist" | "lat";
+
+const importSkjema = z.object({
+  tittel,
+  type: z.enum(["begge", "artist", "lat"]),
+  later: z
+    .array(
+      z.object({
+        id: z.string().regex(/^[A-Za-z0-9]{22}$/),
+        tittel: z.string().trim().min(1).max(200),
+        artist: z.string().trim().min(1).max(200),
+        hovedartist: z.string().trim().min(1).max(200),
+        cover: z.string().refine(tillattBildeUrl).nullable(),
+        startMs: z.number().int().min(0),
+        endMs: z.number().int().min(1),
+      }),
+    )
+    .min(1, "Velg minst én låt")
+    .max(100, "Maks 100 låter per runde"),
+});
+
+export type SpillelisteImport = z.input<typeof importSkjema>;
+
+/** Lager en ny runde med ett spørsmål per låt, med artist og/eller låttittel som fasit. */
+export async function importerSpilleliste(quizId: string, input: SpillelisteImport): Promise<string | null> {
+  const felt = importSkjema.safeParse(input);
+  if (!felt.success) return felt.error.issues[0]?.message ?? "Ugyldig import";
+  const { tittel: rundenavn, type, later } = felt.data;
+
+  const supabase = await requireSpillmester();
+  const { data: runde, error } = await supabase
+    .from("rounds")
+    .insert({ quiz_id: quizId, title: rundenavn, position: await nestePosisjon(supabase, "rounds", "quiz_id", quizId) })
+    .select("id")
+    .single();
+  if (error) return "Kunne ikke lage runden. Prøv igjen.";
+
+  const prompt = {
+    begge: "Hvem synger, og hva heter låten?",
+    artist: "Hvem synger denne låten?",
+    lat: "Hva heter låten?",
+  }[type];
+  const { error: feil } = await supabase.from("questions").insert(
+    later.map((l, i) => {
+      const artist: Svarfelt = { label: "Artist", answer: l.hovedartist, points: 1 };
+      const lat: Svarfelt = { label: "Låt", answer: vaskTittel(l.tittel), points: 1 };
+      return {
+        round_id: runde.id,
+        position: i + 1,
+        prompt,
+        parts: type === "begge" ? [artist, lat] : type === "artist" ? [artist] : [lat],
+        spotify_track_id: l.id,
+        track_title: l.tittel,
+        track_artist: l.artist,
+        start_ms: l.startMs,
+        end_ms: l.endMs,
+        image_url: l.cover,
+        image_timing: "reveal",
+      };
+    }),
+  );
+  if (feil) {
+    await supabase.from("rounds").delete().eq("id", runde.id);
+    return "Kunne ikke lagre spørsmålene. Prøv igjen.";
+  }
+
+  revalidatePath(`/quizer/${quizId}`);
+  return null;
 }
 
 // Spørsmål

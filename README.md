@@ -55,6 +55,19 @@ og må ha Spotify Premium.
 2. Legg den i `.env.local` (og Vercel) som `ANTHROPIC_API_KEY`. Nøkkelen er hemmelig: den
    brukes bare på serveren og skal ikke ha `NEXT_PUBLIC_`-prefiks.
 
+## Registrering av spillmestere
+
+Nye spillmestere registrerer seg på `/registrer` med en invitasjonskode.
+
+1. Velg en invitasjonskode og legg den i Vercel (og `.env.local`) som `REGISTRERINGSKODE`.
+2. Supabase: **Project Settings -> API Keys** -> kopier **Secret key** (`sb_secret_…`) og legg den
+   inn som `SUPABASE_SECRET_KEY`. Den er hemmelig og skal ikke ha `NEXT_PUBLIC_`-prefiks.
+3. Anbefalt: **Authentication -> Sign In / Providers** -> slå av **Allow new users to sign up**,
+   så ingen kan registrere seg rett mot Supabase uten koden. Appen lager kontoene med den hemmelige
+   nøkkelen og påvirkes ikke.
+
+Uten begge variablene er registreringen slått av.
+
 ## Publisering (Vercel)
 
 1. På [vercel.com](https://vercel.com): **Add New -> Project** og importer GitHub-repoet.

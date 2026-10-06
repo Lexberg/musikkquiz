@@ -6,6 +6,8 @@ export type SpotifyLat = {
   id: string;
   tittel: string;
   artist: string;
+  /** Første artist, til fasit. */
+  hovedartist: string;
   album: string;
   aar: string;
   varighetMs: number;
@@ -28,6 +30,7 @@ function tilLat(t: SpotifyTrack): SpotifyLat {
     id: t.id,
     tittel: t.name,
     artist: t.artists.map((a) => a.name).join(", "),
+    hovedartist: t.artists[0]?.name ?? "",
     album: t.album.name,
     aar: t.album.release_date?.slice(0, 4) ?? "",
     varighetMs: t.duration_ms,
@@ -43,13 +46,22 @@ async function spotifyGet<T>(sti: string): Promise<T> {
   const svar = await fetch(sti.startsWith("http") ? sti : `https://api.spotify.com/v1${sti}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
-  if (!svar.ok) throw new SpotifyFeil(svar.status);
+  if (!svar.ok) {
+    const melding = await svar
+      .json()
+      .then((d: { error?: { message?: string } }) => d.error?.message)
+      .catch(() => undefined);
+    throw new SpotifyFeil(svar.status, melding);
+  }
   return svar.json();
 }
 
 export class SpotifyFeil extends Error {
-  constructor(public status: number) {
-    super(`Spotify svarte ${status}.`);
+  constructor(
+    public status: number,
+    public spotifyMelding?: string,
+  ) {
+    super(`Spotify svarte ${status}${spotifyMelding ? ` («${spotifyMelding}»)` : ""}.`);
   }
 }
 
@@ -81,6 +93,23 @@ type Side = { items: { item?: SpotifyTrack | null; track?: SpotifyTrack | null }
 
 /** Låtene i en spilleliste (maks `maks`). */
 export async function hentSpilleliste(id: string, maks = 100) {
+  try {
+    return await hentSpillelisteRå(id, maks);
+  } catch (e) {
+    // Apper i utviklingsmodus får bare lese spillelister brukeren eier eller samarbeider på,
+    // og aldri Spotifys egne lister (f.eks. «Today's Top Hits»).
+    if (e instanceof SpotifyFeil && (e.status === 403 || e.status === 404)) {
+      throw new Error(
+        `Spotify ga ikke tilgang til spillelisten (${e.status}${e.spotifyMelding ? `: ${e.spotifyMelding}` : ""}). ` +
+          "Spotify slipper bare appen til spillelister du eier selv. Lag en kopi i Spotify " +
+          "(… → Legg til i spilleliste → Ny spilleliste) og bruk lenken til kopien.",
+      );
+    }
+    throw e;
+  }
+}
+
+async function hentSpillelisteRå(id: string, maks: number) {
   const info = await spotifyGet<{ name: string }>(`/playlists/${id}?fields=name`);
   // Nyere API bruker /items, eldre /tracks.
   let side: Side;

@@ -1,6 +1,9 @@
 "use server";
 
+import { createHash, timingSafeEqual } from "node:crypto";
+import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { redirect } from "next/navigation";
+import { supabaseUrl } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
 
 export async function loggInn(
@@ -13,6 +16,44 @@ export async function loggInn(
     password: String(formData.get("passord") ?? ""),
   });
   if (error) return "Feil e-post eller passord.";
+  redirect("/quizer");
+}
+
+function likKode(a: string, b: string) {
+  const hash = (s: string) => createHash("sha256").update(s).digest();
+  return timingSafeEqual(hash(a), hash(b));
+}
+
+/**
+ * Ny spillmester med invitasjonskode. Brukeren opprettes med den hemmelige nøkkelen,
+ * så selvregistrering kan være slått av i Supabase og koden ikke kan omgås.
+ */
+export async function registrer(
+  _forrige: string | null,
+  formData: FormData,
+): Promise<string | null> {
+  const invitasjonskode = process.env.REGISTRERINGSKODE;
+  const hemmeligNøkkel = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!invitasjonskode || !hemmeligNøkkel) return "Registrering er ikke slått på.";
+
+  const epost = String(formData.get("epost") ?? "").trim();
+  const passord = String(formData.get("passord") ?? "");
+  if (!likKode(String(formData.get("kode") ?? "").trim(), invitasjonskode)) return "Feil invitasjonskode.";
+  if (passord.length < 8) return "Passordet må ha minst 8 tegn.";
+
+  const admin = createAdminClient(supabaseUrl, hemmeligNøkkel, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  const { error } = await admin.auth.admin.createUser({ email: epost, password: passord, email_confirm: true });
+  if (error) {
+    return error.code === "email_exists"
+      ? "Det finnes allerede en spillmester med den e-postadressen."
+      : `Kunne ikke registrere: ${error.message}`;
+  }
+
+  const supabase = await createClient();
+  const { error: innloggingsfeil } = await supabase.auth.signInWithPassword({ email: epost, password: passord });
+  if (innloggingsfeil) return "Kontoen er laget, men innloggingen feilet. Prøv å logge inn.";
   redirect("/quizer");
 }
 
