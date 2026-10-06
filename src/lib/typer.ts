@@ -8,6 +8,8 @@ export type Quiz = {
   time_limit_seconds: number | null;
   speed_bonus: boolean;
   answer_mode: Svarmate;
+  /** Spill låten automatisk når spillmesteren går til neste spørsmål. */
+  autoplay: boolean;
 };
 
 /** «typed» = lagene skriver svaret på mobilen, «buzzer» = første som trykker svarer høyt. */

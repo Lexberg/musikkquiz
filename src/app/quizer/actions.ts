@@ -91,6 +91,7 @@ export async function endreInnstillinger(quizId: string, formData: FormData) {
       time_limit_seconds: tid >= 5 ? Math.min(Math.round(tid), 600) : null,
       speed_bonus: formData.get("hurtighet") === "on",
       answer_mode: formData.get("svarmate") === "buzzer" ? "buzzer" : "typed",
+      autoplay: formData.get("autospill") === "on",
     })
     .eq("id", quizId);
   revalidatePath(`/quizer/${quizId}`);

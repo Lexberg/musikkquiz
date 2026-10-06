@@ -13,9 +13,11 @@ type Props = {
   tekst?: string;
   /** Kalles når avspillingen har startet (f.eks. for å starte nedtellingen). */
   vedStart?: () => void;
+  /** Spill avsnittet med en gang Spotify er klar (én gang per avsnitt). */
+  autoStart?: boolean;
 };
 
-export function AvspillKnapp({ avsnitt, tekst = "▶ Spill avsnitt", vedStart }: Props) {
+export function AvspillKnapp({ avsnitt, tekst = "▶ Spill avsnitt", vedStart, autoStart = false }: Props) {
   const { status, feil: spotifyFeil, avspilling, loggInn, spill, stopp, fortsett } = useSpotify();
   const [skjemaFeil, setSkjemaFeil] = useState<string | null>(null);
   const feil = skjemaFeil ?? spotifyFeil;
@@ -35,6 +37,15 @@ export function AvspillKnapp({ avsnitt, tekst = "▶ Spill avsnitt", vedStart }:
       if (spillerDenneRef.current) stopp();
     };
   }, [nøkkel, stopp]);
+
+  const autoStartet = useRef<string | null>(null);
+  useEffect(() => {
+    if (!autoStart || !fast || status !== "klar" || autoStartet.current === nøkkel) return;
+    autoStartet.current = nøkkel;
+    spill(fast.trackId, fast.startMs, fast.endMs).then((startet) => {
+      if (startet) vedStart?.();
+    });
+  }, [autoStart, fast, status, nøkkel, spill, vedStart]);
 
   if (status === "mangler-oppsett") {
     return <p className="text-sm text-zinc-500">Spotify er ikke satt opp (mangler Client ID).</p>;

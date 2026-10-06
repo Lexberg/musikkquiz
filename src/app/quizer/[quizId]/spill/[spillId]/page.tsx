@@ -37,7 +37,7 @@ export default async function SpillPage({ params }: PageProps<"/quizer/[quizId]/
 
   const questionId = spill.question_ids[spill.current_index];
   const buzzer = spill.answer_mode === "buzzer";
-  const [{ data: lag }, { data: svar }, { data: sporsmal }, { data: buzzes }] = await Promise.all([
+  const [{ data: lag }, { data: svar }, { data: sporsmal }, { data: buzzes }, { data: quiz }] = await Promise.all([
     supabase.from("teams").select("*").eq("game_id", spillId).order("created_at").returns<Lag[]>(),
     supabase.from("answers").select("*").eq("game_id", spillId).returns<Svar[]>(),
     questionId
@@ -56,6 +56,7 @@ export default async function SpillPage({ params }: PageProps<"/quizer/[quizId]/
           .order("buzzed_at")
           .returns<Buzz[]>()
       : Promise.resolve({ data: null }),
+    supabase.from("quizzes").select("autoplay").eq("id", quizId).maybeSingle<{ autoplay: boolean }>(),
   ]);
 
   const alleLag = lag ?? [];
@@ -206,6 +207,8 @@ export default async function SpillPage({ params }: PageProps<"/quizer/[quizId]/
                           endMs: sporsmal.end_ms,
                         }}
                         vedStart={spill.status === "question" ? startKlokke.bind(null, quizId, spillId) : undefined}
+                        // Bare før låten er spilt (klokken starter da), så den ikke spilles igjen ved ny innlasting.
+                        autoStart={!!quiz?.autoplay && spill.status === "question" && !spill.question_started_at}
                       />
                     </div>
                   </>

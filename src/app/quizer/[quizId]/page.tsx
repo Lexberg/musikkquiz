@@ -26,7 +26,7 @@ export default async function QuizPage({ params }: PageProps<"/quizer/[quizId]">
 
   const { data: quiz } = await supabase
     .from("quizzes")
-    .select("id, title, created_at, time_limit_seconds, speed_bonus, answer_mode")
+    .select("id, title, created_at, time_limit_seconds, speed_bonus, answer_mode, autoplay")
     .eq("id", quizId)
     .maybeSingle<Quiz>();
   if (!quiz) notFound();
@@ -90,6 +90,10 @@ export default async function QuizPage({ params }: PageProps<"/quizer/[quizId]">
           <label className="flex items-center gap-2 pb-2 text-sm">
             <input type="checkbox" name="hurtighet" defaultChecked={quiz.speed_bonus} />
             Hurtighetspoeng for alt riktig (med nedtelling: opptil +3 etter tid brukt, uten: +3/+2/+1 til de tre raskeste)
+          </label>
+          <label className="flex items-center gap-2 pb-2 text-sm">
+            <input type="checkbox" name="autospill" defaultChecked={quiz.autoplay} />
+            Spill låten automatisk når du går til neste spørsmål
           </label>
           <Knapp variant="sekundær">Lagre innstillinger</Knapp>
         </form>
