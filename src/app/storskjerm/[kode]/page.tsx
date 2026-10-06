@@ -70,7 +70,7 @@ function Innhold({ t, bliMedUrl, vedNull }: { t: Storskjermtilstand; bliMedUrl: 
 
   if (t.status === "finished") {
     return (
-      <div className="m-auto flex w-full max-w-4xl flex-col gap-8">
+      <div className={`m-auto flex w-full flex-col gap-8 ${t.teams.length > 8 ? "max-w-7xl" : "max-w-4xl"}`}>
         <h1 className="text-center text-[5vw] font-bold leading-none">🏆 Resultat</h1>
         <Poengtavle lag={t.teams} stor />
       </div>
@@ -208,8 +208,8 @@ function Innhold({ t, bliMedUrl, vedNull }: { t: Storskjermtilstand; bliMedUrl: 
             </ul>
           </div>
         ) : (
-          <div className="w-full max-w-3xl">
-            <Poengtavle lag={t.teams.slice(0, 8)} />
+          <div className={`w-full ${t.teams.length > 6 ? "max-w-6xl" : "max-w-3xl"}`}>
+            <Poengtavle lag={t.teams} />
           </div>
         )}
         <div className="flex shrink-0 flex-col items-center gap-2 text-zinc-400">
@@ -228,12 +228,15 @@ function Poeng({ p }: { p: number }) {
 
 function Poengtavle({ lag, stor = false }: { lag: Storskjermtilstand["teams"]; stor?: boolean }) {
   const medaljer = ["🥇", "🥈", "🥉"];
+  // Mange lag fordeles på flere kolonner (nedover, så bortover), så alle får plass.
+  const perKolonne = stor ? 8 : 6;
+  const kolonner = ["", "columns-2", "columns-3", "columns-4"][Math.min(3, Math.floor((lag.length - 1) / perKolonne))];
   return (
-    <ol className="flex flex-col gap-2">
+    <ol className={`gap-4 ${kolonner}`}>
       {lag.map((l, i) => (
         <li
           key={l.name}
-          className={`flex items-center gap-4 rounded-xl bg-zinc-900 px-6 ${stor ? "py-4 text-4xl" : "py-2 text-2xl"}`}
+          className={`mb-2 flex break-inside-avoid items-center gap-4 rounded-xl bg-zinc-900 px-6 ${stor ? "py-4 text-4xl" : "py-2 text-2xl"}`}
         >
           <span className="w-12 text-center">{medaljer[i] ?? `${i + 1}.`}</span>
           <span className="flex-1 font-semibold">{l.name}</span>
