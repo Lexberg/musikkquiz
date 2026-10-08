@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { loggUt } from "@/app/login/actions";
 import { Knapp } from "@/components/skjema";
+import { erAdmin } from "@/lib/supabase/admin";
 import { SpotifyProvider } from "@/components/spotify/spotify-provider";
 import { SpotifyStatus } from "@/components/spotify/spotify-status";
 
-export default function SpillmesterLayout({ children }: LayoutProps<"/quizer">) {
+export default async function SpillmesterLayout({ children }: LayoutProps<"/quizer">) {
+  const admin = await erAdmin();
   return (
     // Spotify-spilleren lever i layouten så den overlever navigering mellom sidene.
     <SpotifyProvider>
@@ -16,9 +18,11 @@ export default function SpillmesterLayout({ children }: LayoutProps<"/quizer">) 
             </Link>
             <div className="flex items-center gap-2">
               <SpotifyStatus />
-              <Link href="/quizer/inviter" className="px-2 text-sm font-semibold text-violet-600 hover:underline">
-                Inviter
-              </Link>
+              {admin && (
+                <Link href="/quizer/inviter" className="px-2 text-sm font-semibold text-violet-600 hover:underline">
+                  Inviter
+                </Link>
+              )}
               <form action={loggUt}>
                 <Knapp variant="sekundær">Logg ut</Knapp>
               </form>

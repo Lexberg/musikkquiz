@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useActionState } from "react";
 import { loggInn } from "./actions";
 import { Felt, Knapp } from "@/components/skjema";
@@ -24,10 +23,7 @@ export default function LoginPage() {
         <Knapp disabled={venter}>{venter ? "Logger inn …" : "Logg inn"}</Knapp>
       </form>
       <p className="text-sm text-zinc-500">
-        Ny spillmester?{" "}
-        <Link href="/registrer" className="font-semibold text-violet-600 hover:underline">
-          Registrer deg med invitasjonskode
-        </Link>
+        Ny spillmester? Du trenger en invitasjonslenke fra den som drifter appen.
       </p>
     </main>
   );

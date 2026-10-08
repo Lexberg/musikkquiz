@@ -71,19 +71,21 @@ for å velge. Uten den brukes Anthropic hvis `ANTHROPIC_API_KEY` er satt, ellers
 
 ## Registrering av spillmestere
 
-Nye spillmestere registrerer seg på `/registrer` med en invitasjonskode.
+Nye spillmestere registrerer seg på `/registrer` med en engangsinvitasjon. Bare admin kan
+invitere; spillmestere som er invitert kan ikke invitere andre.
 
-1. Velg en invitasjonskode og legg den i Vercel (og `.env.local`) som `REGISTRERINGSKODE`.
+1. Kjør `supabase/migrations/0013_invitasjoner.sql`.
 2. Supabase: **Project Settings -> API Keys** -> kopier **Secret key** (`sb_secret_…`) og legg den
    inn som `SUPABASE_SECRET_KEY`. Den er hemmelig og skal ikke ha `NEXT_PUBLIC_`-prefiks.
-3. Anbefalt: **Authentication -> Sign In / Providers** -> slå av **Allow new users to sign up**,
-   så ingen kan registrere seg rett mot Supabase uten koden. Appen lager kontoene med den hemmelige
-   nøkkelen og påvirkes ikke.
+3. Sett `ADMIN_EPOST` i Vercel (og `.env.local`) til din e-postadresse. Flere admins kan skilles
+   med komma.
+4. Anbefalt: **Authentication -> Sign In / Providers** -> slå av **Allow new users to sign up**,
+   så ingen kan registrere seg rett mot Supabase uten invitasjon. Appen lager kontoene med den
+   hemmelige nøkkelen og påvirkes ikke.
 
-Uten begge variablene er registreringen slått av.
-
-Innloggede spillmestere finner en ferdig invitasjonslenke under **Inviter** øverst i appen
-(`/registrer?kode=…`, med kopier-, dele- og QR-knapp). Koden fylles da inn automatisk.
+Admin finner **Inviter** øverst i appen. Der lager du en invitasjon per person og får en lenke
+(`/registrer?invitasjon=…`, med kopier-, dele- og QR-knapp). Hver lenke virker én gang, og ubrukte
+invitasjoner kan trekkes tilbake.
 
 ## Publisering (Vercel)
 
