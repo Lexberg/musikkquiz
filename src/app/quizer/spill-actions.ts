@@ -105,11 +105,20 @@ export async function settPoeng(
   revalidatePath(spillSti(quizId, spillId));
 }
 
-/** Buzzer: laget som trykket svarte riktig (får poengene, svarene låses) eller feil (buzzeren åpnes igjen). */
-export async function dommBuzz(quizId: string, spillId: string, buzzId: string, riktig: boolean) {
+/**
+ * Buzzer: `deler` er svarfeltene (0-basert) laget som trykket hadde riktig. Laget får poeng for dem,
+ * og buzzeren åpnes igjen for de andre lagene til alle svarfeltene er tatt. Tom liste = feil.
+ */
+export async function dommBuzz(quizId: string, spillId: string, buzzId: string, deler: number[]) {
   const supabase = await requireSpillmester();
-  sjekk(await supabase.rpc("host_judge_buzz", { p_buzz_id: buzzId, p_correct: riktig }));
+  sjekk(await supabase.rpc("host_judge_buzz", { p_buzz_id: buzzId, p_parts: deler }));
   revalidatePath(spillSti(quizId, spillId));
+}
+
+/** Buzzer: som `dommBuzz`, med svarfeltene spillmesteren har krysset av i skjemaet. */
+export async function dommBuzzAvkrysset(quizId: string, spillId: string, buzzId: string, data: FormData) {
+  const deler = data.getAll("del").map(Number).filter(Number.isInteger);
+  await dommBuzz(quizId, spillId, buzzId, deler);
 }
 
 /** Buzzer: angrer siste Riktig/Feil på gjeldende spørsmål. */

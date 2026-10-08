@@ -6,6 +6,7 @@ import { Nedtelling } from "@/components/nedtelling";
 import { QrKode } from "@/components/qr-kode";
 import { useSpillkanal } from "@/lib/bruk-spillkanal";
 import { createClient } from "@/lib/supabase/client";
+import { buzzPoengTekst } from "@/lib/svarfelt";
 import type { Storskjermtilstand } from "@/lib/typer";
 
 const ingenAbonnement = () => () => {};
@@ -78,6 +79,9 @@ function Innhold({ t, bliMedUrl, vedNull }: { t: Storskjermtilstand; bliMedUrl: 
   }
 
   const buzzer = t.answer_mode === "buzzer";
+  // Buzzer med flere svarfelt: laget som har tatt svarfeltet.
+  const tattAv = (i: number) => t.buzz_scored?.find((s) => s.parts.includes(i))?.name;
+  const vinnere = buzzPoengTekst(t.buzz_scored ?? [], t.parts ?? []);
 
   return (
     <div className="flex min-h-0 flex-1 gap-[3vw]">
@@ -121,6 +125,9 @@ function Innhold({ t, bliMedUrl, vedNull }: { t: Storskjermtilstand; bliMedUrl: 
                     t.parts!.length > 1 && (
                       <span key={i} className="self-start rounded-xl border-2 border-zinc-700 px-6 py-3 text-3xl text-zinc-300">
                         {p.label}
+                        {tattAv(i) && t.status === "question" && (
+                          <span className="ml-4 text-green-400">✓ {tattAv(i)}</span>
+                        )}
                       </span>
                     )
                   ),
@@ -134,7 +141,7 @@ function Innhold({ t, bliMedUrl, vedNull }: { t: Storskjermtilstand; bliMedUrl: 
             )}
             {buzzer && t.status === "locked" && (
               <p className="text-4xl font-semibold text-amber-400">
-                {t.buzz_winner ? `🏆 ${t.buzz_winner} svarte riktig` : "Ingen svarte riktig"}
+                {vinnere ? `🏆 ${vinnere}` : "Ingen svarte riktig"}
               </p>
             )}
             {t.status === "locked" &&

@@ -10,6 +10,7 @@ import {
   angreBuzz,
   avsluttSpill,
   dommBuzz,
+  dommBuzzAvkrysset,
   fjernLag,
   lasHvisUtlopt,
   lasSvar,
@@ -97,6 +98,12 @@ export default async function SpillPage({ params }: PageProps<"/quizer/[quizId]/
     .filter((b) => b.result !== null)
     .sort((a, b) => (b.judged_at ?? b.buzzed_at).localeCompare(a.judged_at ?? a.buzzed_at))[0];
   const visteRader = buzzer ? lagRader.filter((r) => r.svar) : lagRader;
+  // Buzzer med flere svarfelt: hvilket lag som har tatt hvert svarfelt, og hva som gjenstår.
+  const feltene = sporsmal?.parts ?? [];
+  const tattAv = new Map(
+    (buzzes ?? []).flatMap((b) => (b.parts_correct ?? []).map((i) => [i, lagNavn(b.team_id)] as const)),
+  );
+  const gjenstår = feltene.map((_, i) => i).filter((i) => !tattAv.has(i));
 
   const neste = nesteSporsmal.bind(null, quizId, spillId, spill.current_index);
   const avslutt = avsluttSpill.bind(null, quizId, spillId);
@@ -226,21 +233,50 @@ export default async function SpillPage({ params }: PageProps<"/quizer/[quizId]/
               {svarer ? (
                 <div className="flex flex-col items-center gap-4 rounded-xl bg-red-600 px-6 py-6 text-center text-white">
                   <p className="text-3xl font-bold">🔔 {lagNavn(svarer.team_id)} trykket først!</p>
-                  <form className="flex flex-wrap justify-center gap-3">
-                    <button
-                      formAction={dommBuzz.bind(null, quizId, spillId, svarer.id, true)}
-                      className="rounded-lg bg-white px-6 py-3 text-lg font-bold text-green-700 hover:bg-green-50"
-                    >
-                      ✓ Riktig{sporsmal && ` (+${poengSum(sporsmal.parts)} p)`}
-                    </button>
-                    <button
-                      formAction={dommBuzz.bind(null, quizId, spillId, svarer.id, false)}
-                      className="rounded-lg border-2 border-white px-6 py-3 text-lg font-bold hover:bg-red-700"
-                    >
-                      ✗ Feil
-                    </button>
+                  <form className="flex flex-col items-center gap-4">
+                    <div className="flex flex-wrap justify-center gap-3">
+                      <button
+                        formAction={dommBuzz.bind(null, quizId, spillId, svarer.id, gjenstår)}
+                        className="rounded-lg bg-white px-6 py-3 text-lg font-bold text-green-700 hover:bg-green-50"
+                      >
+                        ✓ {gjenstår.length < feltene.length ? "Resten riktig" : "Riktig"} (+
+                        {gjenstår.reduce((n, i) => n + feltene[i].points, 0)} p)
+                      </button>
+                      <button
+                        formAction={dommBuzz.bind(null, quizId, spillId, svarer.id, [])}
+                        className="rounded-lg border-2 border-white px-6 py-3 text-lg font-bold hover:bg-red-700"
+                      >
+                        ✗ Feil
+                      </button>
+                    </div>
+                    {gjenstår.length > 1 && (
+                      <div className="flex flex-col items-center gap-2 rounded-lg bg-red-700/60 px-4 py-3">
+                        <p className="text-sm font-semibold">Delvis riktig? Kryss av det de hadde riktig:</p>
+                        <div className="flex flex-wrap justify-center gap-2">
+                          {gjenstår.map((i) => (
+                            <label
+                              key={i}
+                              className="flex cursor-pointer items-center gap-2 rounded-lg bg-white/10 px-3 py-2 has-[:checked]:bg-white has-[:checked]:text-green-700"
+                            >
+                              <input type="checkbox" name="del" value={i} className="size-4 accent-green-600" />
+                              <span>
+                                <strong>{feltene[i].label}</strong>: {feltene[i].answer} ({feltene[i].points} p)
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                        <button
+                          formAction={dommBuzzAvkrysset.bind(null, quizId, spillId, svarer.id)}
+                          className="rounded-lg bg-white px-4 py-2 font-bold text-green-700 hover:bg-green-50"
+                        >
+                          Gi poeng for det avkryssede
+                        </button>
+                      </div>
+                    )}
                   </form>
-                  <p className="text-sm opacity-80">Musikken pauses mens de svarer. Ved feil åpnes buzzeren igjen for de andre.</p>
+                  <p className="text-sm opacity-80">
+                    Musikken pauses mens de svarer. Ved feil eller delvis riktig åpnes buzzeren igjen for de andre.
+                  </p>
                 </div>
               ) : (
                 spill.status === "question" && (
@@ -248,6 +284,17 @@ export default async function SpillPage({ params }: PageProps<"/quizer/[quizId]/
                     🔔 Buzzeren er åpen – venter på at noen trykker …
                   </p>
                 )
+              )}
+              {tattAv.size > 0 && feltene.length > 1 && (
+                <p className="text-sm text-zinc-500">
+                  ✓ Tatt:{" "}
+                  {[...tattAv]
+                    .sort(([a], [b]) => a - b)
+                    .map(([i, navn]) => `${feltene[i]?.label} (${navn})`)
+                    .join(", ")}
+                  {spill.status === "question" && gjenstår.length > 0 &&
+                    ` · Gjenstår: ${gjenstår.map((i) => feltene[i].label).join(", ")}`}
+                </p>
               )}
               {ute.length > 0 && (
                 <p className="text-sm text-zinc-500">
@@ -297,7 +344,7 @@ export default async function SpillPage({ params }: PageProps<"/quizer/[quizId]/
                           {sporsmal && sporsmal.parts.length > 1 && (
                             <span className="w-20 text-zinc-500">{felt?.label}</span>
                           )}
-                          <span className="flex-1">{verdi}</span>
+                          <span className="flex-1">{verdi || "–"}</span>
                           {spill.status === "locked" && felt && (
                             <form className="flex gap-1">
                               <Knapp
@@ -327,7 +374,7 @@ export default async function SpillPage({ params }: PageProps<"/quizer/[quizId]/
           {spill.status === "question" ? (
             <form action={lasSvar.bind(null, quizId, spillId)}>
               {buzzer ? (
-                <Knapp variant="sekundær">Vis fasit (ingen får poeng)</Knapp>
+                <Knapp variant="sekundær">Vis fasit (ingen {tattAv.size > 0 ? "flere " : ""}får poeng)</Knapp>
               ) : (
                 <Knapp>
                   Lås svar nå ({svarNå.size} av {alleLag.length} lag har låst)
@@ -338,7 +385,7 @@ export default async function SpillPage({ params }: PageProps<"/quizer/[quizId]/
             <div className="flex flex-col gap-2">
               <p className="text-sm text-zinc-500">
                 {buzzer
-                  ? "Riktig på buzzeren gir poeng for alle svarfeltene. Juster med ✓/✗ hvis laget bare hadde deler riktig."
+                  ? "Juster med ✓/✗ om nødvendig."
                   : "Svar som er like fasiten er rettet automatisk (små skrivefeil i fritekst godtas). Juster med ✓/✗ om nødvendig."}
                 {spill.speed_bonus &&
                   (spill.time_limit_seconds

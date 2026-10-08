@@ -7,6 +7,7 @@ import { Knapp } from "@/components/skjema";
 import { useSpillkanal } from "@/lib/bruk-spillkanal";
 import { glemLag, useLagretLag, type LagrettLag } from "@/lib/lagring";
 import { createClient } from "@/lib/supabase/client";
+import { buzzPoengTekst } from "@/lib/svarfelt";
 import type { Deltakertilstand } from "@/lib/typer";
 
 export default function SpillPage() {
@@ -238,6 +239,9 @@ function Buzzer({
   onTrykk: () => void;
 }) {
   const mitt = tilstand.my_buzz;
+  const parts = tilstand.parts ?? [];
+  const scored = tilstand.buzz_scored ?? [];
+  const mineFelt = scored.find((s) => s.name === tilstand.team_name)?.parts ?? [];
   const åpen = tilstand.status === "question" && !tilstand.buzz_holder && !mitt;
   const rund = "flex aspect-square w-full max-w-xs flex-col items-center justify-center gap-2 rounded-full p-8 text-center";
 
@@ -258,6 +262,12 @@ function Buzzer({
           <span className="text-5xl">🔔</span>
           <span className="text-3xl font-black">Dere svarer!</span>
           <span className="text-lg">Si svaret høyt</span>
+        </div>
+      ) : mitt === "partial" ? (
+        <div className={`${rund} bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-300`}>
+          <span className="text-5xl">✓</span>
+          <span className="text-2xl font-bold">Delvis riktig</span>
+          <span>Dere fikk {mineFelt.map((i) => parts[i]?.label).join(" og ")}. De andre kan ta resten.</span>
         </div>
       ) : mitt === "wrong" ? (
         <div className={`${rund} bg-zinc-200 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400`}>
@@ -294,6 +304,7 @@ function Buzzer({
 
       <div className="flex min-h-12 flex-col items-center gap-1 text-center text-sm text-zinc-500">
         {feil && <p className="font-semibold text-red-600">{feil}</p>}
+        {tilstand.status === "question" && scored.length > 0 && <p>✓ {buzzPoengTekst(scored, parts)}</p>}
         {tilstand.status === "question" && !!tilstand.buzz_out?.length && (
           <p>✗ Svarte feil: {tilstand.buzz_out.join(", ")}</p>
         )}
@@ -305,16 +316,13 @@ function Buzzer({
 
 function BuzzerFasit({ tilstand }: { tilstand: Deltakertilstand }) {
   const parts = tilstand.parts ?? [];
-  const vant = tilstand.my_buzz === "correct";
+  const vant = tilstand.my_buzz === "correct" || tilstand.my_buzz === "partial";
   const poeng = (tilstand.my_points ?? []).reduce((n, p) => n + p, 0);
+  const vinnere = buzzPoengTekst(tilstand.buzz_scored ?? [], parts);
   return (
     <div className="flex w-full flex-col gap-3 rounded-lg bg-zinc-100 px-4 py-4 text-center dark:bg-zinc-900">
       <p className="text-2xl font-bold">
-        {vant
-          ? `🎉 Riktig! +${poeng} p`
-          : tilstand.buzz_winner
-            ? `🏆 ${tilstand.buzz_winner} svarte riktig`
-            : "Ingen svarte riktig"}
+        {vant ? `🎉 ${tilstand.my_buzz === "correct" ? "Riktig! " : ""}+${poeng} p` : vinnere ? `🏆 ${vinnere}` : "Ingen svarte riktig"}
       </p>
       {tilstand.image_url && (
         // eslint-disable-next-line @next/next/no-img-element

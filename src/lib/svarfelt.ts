@@ -34,6 +34,13 @@ export function poengSum(parts: Svarfelt[]) {
   return parts.reduce((n, p) => n + p.points, 0);
 }
 
+/** Buzzer: hvem som fikk poeng, f.eks. «Lag A svarte riktig» eller «Lag A: Artist · Lag B: Tittel». */
+export function buzzPoengTekst(scored: { name: string; parts: number[] }[], parts: { label: string }[]) {
+  if (scored.length === 0) return null;
+  if (scored.length === 1 && scored[0].parts.length >= parts.length) return `${scored[0].name} svarte riktig`;
+  return scored.map((s) => `${s.name}: ${s.parts.map((i) => parts[i]?.label).join(" og ")}`).join(" · ");
+}
+
 /** Flervalg: fasit + feil alternativer i tilfeldig rekkefølge (lik for alle lag). */
 export function lagAlternativer(fasit: string, feil: string[]) {
   const alle = [fasit, ...feil.filter((f) => f && f !== fasit)];
