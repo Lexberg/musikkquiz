@@ -85,7 +85,7 @@ export async function endreQuiz(quizId: string, formData: FormData) {
 export async function endreInnstillinger(quizId: string, formData: FormData) {
   const tid = Number(formData.get("tid"));
   const supabase = await requireSpillmester();
-  await supabase
+  const { error } = await supabase
     .from("quizzes")
     .update({
       time_limit_seconds: tid >= 5 ? Math.min(Math.round(tid), 600) : null,
@@ -94,6 +94,7 @@ export async function endreInnstillinger(quizId: string, formData: FormData) {
       autoplay: formData.get("autospill") === "on",
     })
     .eq("id", quizId);
+  if (error) throw error;
   revalidatePath(`/quizer/${quizId}`);
 }
 

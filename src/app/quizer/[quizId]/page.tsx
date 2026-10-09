@@ -65,7 +65,13 @@ export default async function QuizPage({ params }: PageProps<"/quizer/[quizId]">
       </div>
 
       <section className="flex flex-col gap-3 rounded-lg bg-violet-50 p-4 dark:bg-violet-950/40">
-        <form action={endreInnstillinger.bind(null, quizId)} className="flex flex-wrap items-end gap-4">
+        {/* React nullstiller skjemaet etter lagring, og <select> beholder da den gamle verdien.
+            Nøkkelen bygger skjemaet på nytt med de lagrede verdiene. */}
+        <form
+          key={`${quiz.answer_mode}:${quiz.time_limit_seconds}:${quiz.speed_bonus}:${quiz.autoplay}`}
+          action={endreInnstillinger.bind(null, quizId)}
+          className="flex flex-wrap items-end gap-4"
+        >
           <label className="flex flex-col gap-1 text-sm font-medium">
             Svarmåte
             <select
