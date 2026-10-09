@@ -227,6 +227,9 @@ export default function SpillPage() {
   );
 }
 
+/** Hvor lenge buzzeren er sperret etter et trykk før den har åpnet. */
+const STRAFF_MS = 2000;
+
 function Buzzer({
   tilstand,
   sender,
@@ -242,7 +245,27 @@ function Buzzer({
   const parts = tilstand.parts ?? [];
   const scored = tilstand.buzz_scored ?? [];
   const mineFelt = scored.find((s) => s.name === tilstand.team_name)?.parts ?? [];
-  const åpen = tilstand.status === "question" && !tilstand.buzz_holder && !mitt;
+  const ledig = tilstand.status === "question" && !tilstand.buzz_holder && !mitt;
+  const stengt = ledig && !tilstand.buzz_open;
+  const åpen = ledig && !stengt;
+
+  // Trykk før buzzeren har åpnet gir straff: knappen er sperret til STRAFF_MS etter siste trykk,
+  // så det ikke lønner seg å hamre løs før låten starter.
+  const [straff, setStraff] = useState(false);
+  const straffTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(straffTimer.current), []);
+  function trykk() {
+    if (stengt || straff) {
+      navigator.vibrate?.([30, 50, 30]);
+      setStraff(true);
+      clearTimeout(straffTimer.current);
+      straffTimer.current = setTimeout(() => setStraff(false), STRAFF_MS);
+    } else {
+      onTrykk();
+    }
+  }
+  const sperret = stengt || straff;
+
   const rund = "flex aspect-square w-full max-w-xs flex-col items-center justify-center gap-2 rounded-full p-8 text-center";
 
   return (
@@ -284,21 +307,27 @@ function Buzzer({
       ) : (
         <button
           type="button"
-          disabled={!åpen || sender}
+          // Ikke «disabled» mens den er sperret: trykkene må fanges opp for å gi straff.
+          disabled={sender}
+          aria-disabled={sperret}
           // pointerdown i stedet for click: reagerer med en gang fingeren treffer skjermen.
           onPointerDown={(e) => {
             e.preventDefault();
-            onTrykk();
+            trykk();
           }}
           onKeyDown={(e) => {
             if (e.key === "Enter" || e.key === " ") {
               e.preventDefault();
-              onTrykk();
+              trykk();
             }
           }}
-          className={`${rund} touch-manipulation select-none bg-red-600 text-5xl font-black tracking-wide text-white shadow-[0_14px_0_0_#7f1d1d] transition-transform active:translate-y-3 active:shadow-[0_2px_0_0_#7f1d1d] disabled:translate-y-3 disabled:shadow-[0_2px_0_0_#7f1d1d]`}
+          className={`${rund} touch-manipulation select-none font-black tracking-wide transition-transform ${
+            sperret
+              ? "bg-zinc-300 text-3xl text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
+              : "bg-red-600 text-5xl text-white shadow-[0_14px_0_0_#7f1d1d] active:translate-y-3 active:shadow-[0_2px_0_0_#7f1d1d] disabled:translate-y-3 disabled:shadow-[0_2px_0_0_#7f1d1d]"
+          }`}
         >
-          {sender ? "…" : "TRYKK!"}
+          {straff ? "For tidlig!" : stengt ? "Vent …" : sender ? "…" : "TRYKK!"}
         </button>
       )}
 
@@ -308,7 +337,13 @@ function Buzzer({
         {tilstand.status === "question" && !!tilstand.buzz_out?.length && (
           <p>✗ Svarte feil: {tilstand.buzz_out.join(", ")}</p>
         )}
-        {åpen && <p>Først til å trykke får svare høyt.</p>}
+        {straff ? (
+          <p className="font-semibold text-red-600">For tidlig! Buzzeren er sperret et øyeblikk.</p>
+        ) : stengt ? (
+          <p>Buzzeren åpner når musikken starter. Trykk for tidlig, og dere blir sperret litt.</p>
+        ) : (
+          åpen && <p>Først til å trykke får svare høyt.</p>
+        )}
       </div>
     </div>
   );

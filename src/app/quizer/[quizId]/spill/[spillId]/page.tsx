@@ -155,12 +155,16 @@ export default async function SpillPage({ params }: PageProps<"/quizer/[quizId]/
               Spørsmål {nr} av {totalt}
               {sporsmal?.rounds && ` · ${sporsmal.rounds.title}`}
             </p>
-            {spill.status === "question" && !spill.question_started_at && !buzzer && (
+            {spill.status === "question" && !spill.question_started_at && (
               <form action={startKlokke.bind(null, quizId, spillId)} className="flex items-center gap-2">
                 <span className="text-sm text-zinc-500">
-                  {spill.time_limit_seconds ? "Nedtellingen" : "Klokken"} starter når du spiller låten
+                  {buzzer
+                    ? sporsmal?.spotify_track_id
+                      ? "Buzzeren åpnes når du spiller låten"
+                      : "Les opp spørsmålet, og åpne buzzeren"
+                    : `${spill.time_limit_seconds ? "Nedtellingen" : "Klokken"} starter når du spiller låten`}
                 </span>
-                <Knapp variant="sekundær">Start nå</Knapp>
+                <Knapp variant="sekundær">{buzzer ? "Åpne buzzeren nå" : "Start nå"}</Knapp>
               </form>
             )}
             {spill.status === "question" && spill.question_deadline && (
@@ -281,7 +285,9 @@ export default async function SpillPage({ params }: PageProps<"/quizer/[quizId]/
               ) : (
                 spill.status === "question" && (
                   <p className="rounded-xl border-2 border-dashed border-zinc-300 px-6 py-6 text-center text-zinc-500 dark:border-zinc-700">
-                    🔔 Buzzeren er åpen – venter på at noen trykker …
+                    {spill.question_started_at
+                      ? "🔔 Buzzeren er åpen – venter på at noen trykker …"
+                      : "🔕 Buzzeren er stengt til låten starter."}
                   </p>
                 )
               )}

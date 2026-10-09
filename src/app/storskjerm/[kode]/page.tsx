@@ -169,7 +169,9 @@ function Innhold({ t, bliMedUrl, vedNull }: { t: Storskjermtilstand; bliMedUrl: 
             {buzzer
               ? t.buzz_holder
                 ? "Buzzeren er tatt"
-                : "🔔 Først til å trykke får svare"
+                : t.buzz_open
+                  ? "🔔 Først til å trykke får svare"
+                  : "🔕 Buzzeren åpner når musikken starter"
               : `${t.answered ?? 0} av ${t.teams.length} lag har låst`}
           </p>
         )}

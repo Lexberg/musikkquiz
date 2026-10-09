@@ -92,6 +92,8 @@ export type BuzzPoeng = { name: string; parts: number[] };
 
 /** Buzzer-status for gjeldende spørsmål, i buzzer-modus. */
 export type Buzzerstatus = {
+  /** Buzzeren har åpnet: låten (eller klokken) har startet. */
+  buzz_open?: boolean;
   /** Laget som har buzzeren og svarer nå. */
   buzz_holder?: string | null;
   /** Lagene som har fått poeng, og svarfeltene (0-basert) de fikk. */
