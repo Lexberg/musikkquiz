@@ -1,4 +1,7 @@
+"use client";
+
 import type { ComponentProps } from "react";
+import { useFormStatus } from "react-dom";
 
 const inputKlasse =
   "w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-base text-zinc-900 focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-200 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:focus:ring-violet-900";
@@ -21,8 +24,11 @@ export function Felt({
 export function Knapp({
   variant = "primær",
   className,
+  disabled,
   ...props
 }: ComponentProps<"button"> & { variant?: "primær" | "sekundær" | "fare" }) {
+  // Låst mens skjemaet sendes, så det synes at noe skjer og dobbeltklikk ikke sender to ganger.
+  const { pending } = useFormStatus();
   const farger = {
     primær: "bg-violet-600 text-white hover:bg-violet-700",
     sekundær:
@@ -32,6 +38,8 @@ export function Knapp({
   return (
     <button
       className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-50 ${farger} ${className ?? ""}`}
+      disabled={disabled || pending}
+      aria-busy={pending || undefined}
       {...props}
     />
   );
