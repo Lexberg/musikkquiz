@@ -15,12 +15,12 @@ import {
   lasHvisUtlopt,
   lasSvar,
   nesteSporsmal,
-  settPoeng,
   startKlokke,
 } from "@/app/quizer/spill-actions";
 import { AvspillKnapp } from "@/components/spotify/avspill-knapp";
 import { BuzzerMusikk } from "./buzzer-musikk";
 import { LiveOppdatering } from "./live-oppdatering";
+import { RettKnapper } from "./rett-knapper";
 import { Nedtelling } from "@/components/nedtelling";
 import { QrKode } from "@/components/qr-kode";
 
@@ -358,22 +358,15 @@ export default async function SpillPage({ params }: PageProps<"/quizer/[quizId]/
                           )}
                           <span className="flex-1">{verdi || "–"}</span>
                           {spill.status === "locked" && felt && (
-                            <form className="flex gap-1">
-                              <Knapp
-                                variant={poeng ? "primær" : "sekundær"}
-                                formAction={settPoeng.bind(null, quizId, spillId, s.id, i, felt.points)}
-                                aria-label={`${felt.label} riktig`}
-                              >
-                                ✓
-                              </Knapp>
-                              <Knapp
-                                variant={poeng === 0 ? "primær" : "sekundær"}
-                                formAction={settPoeng.bind(null, quizId, spillId, s.id, i, 0)}
-                                aria-label={`${felt.label} feil`}
-                              >
-                                ✗
-                              </Knapp>
-                            </form>
+                            <RettKnapper
+                              quizId={quizId}
+                              spillId={spillId}
+                              svarId={s.id}
+                              feltIndeks={i}
+                              etikett={felt.label}
+                              maks={felt.points}
+                              poeng={poeng}
+                            />
                           )}
                         </div>
                       );
