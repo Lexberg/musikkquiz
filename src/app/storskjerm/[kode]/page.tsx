@@ -214,6 +214,7 @@ function Sidetavle({ t }: { t: Storskjermtilstand }) {
       {t.teams.map((l, i) => {
         const svarer = buzzer && åpen && l.name === t.buzz_holder;
         const ute = buzzer && åpen && t.buzz_out?.includes(l.name);
+        const tjuvstart = ute && t.buzz_false_starts?.includes(l.name);
         const låst = !buzzer && åpen && l.locked;
         return (
           <li
@@ -226,7 +227,7 @@ function Sidetavle({ t }: { t: Storskjermtilstand }) {
             <span className="min-w-0 flex-1 truncate font-semibold">
               {svarer && "🔔 "}
               {låst && "✓ "}
-              {ute && "✗ "}
+              {ute && (tjuvstart ? "🚫 " : "✗ ")}
               {l.name}
             </span>
             <span className="shrink-0 font-mono font-bold text-violet-300">{l.points}</span>

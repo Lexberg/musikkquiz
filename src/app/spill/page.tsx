@@ -81,14 +81,22 @@ export default function SpillPage() {
     setSender(false);
   }
 
-  async function trykk() {
+  /** `tidlig`: trykket før buzzeren har åpnet. Databasen teller det som tjuvstart. */
+  async function trykk(tidlig: boolean) {
     if (!lag || buzzerSender.current) return;
     buzzerSender.current = true;
-    navigator.vibrate?.(80);
+    if (!tidlig) navigator.vibrate?.(80);
     setSender(true);
     setBuzzFeil(null);
-    const { error } = await createClient().rpc("buzz", { p_team_id: lag.teamId, p_secret: lag.secret });
+    const { data, error } = await createClient().rpc("buzz", { p_team_id: lag.teamId, p_secret: lag.secret });
+    const tjuvstart = data as { false_start?: number; out?: boolean } | null;
     if (error) setBuzzFeil({ nr, tekst: error.message });
+    else if (tjuvstart?.false_start && !tjuvstart.out) {
+      setBuzzFeil({
+        nr,
+        tekst: `Tjuvstart! Advarsel ${tjuvstart.false_start} av ${TJUVSTARTER - 1}. Neste gang er dere ute av spørsmålet.`,
+      });
+    }
     await hent(lag);
     setSender(false);
     buzzerSender.current = false;
@@ -229,6 +237,10 @@ export default function SpillPage() {
 
 /** Hvor lenge buzzeren er sperret etter et trykk før den har åpnet. */
 const STRAFF_MS = 2000;
+/** Tidlige trykk innenfor dette tidsrommet telles som én tjuvstart. */
+const TELLE_MS = 1000;
+/** Så mange tjuvstarter før laget er ute av spørsmålet (må stemme med buzz() i databasen). */
+const TJUVSTARTER = 3;
 
 function Buzzer({
   tilstand,
@@ -239,7 +251,7 @@ function Buzzer({
   tilstand: Deltakertilstand;
   sender: boolean;
   feil: string | null;
-  onTrykk: () => void;
+  onTrykk: (tidlig: boolean) => void;
 }) {
   const mitt = tilstand.my_buzz;
   const parts = tilstand.parts ?? [];
@@ -250,21 +262,25 @@ function Buzzer({
   const åpen = ledig && !stengt;
 
   // Trykk før buzzeren har åpnet gir straff: knappen er sperret til STRAFF_MS etter siste trykk,
-  // så det ikke lønner seg å hamre løs før låten starter.
+  // og databasen teller tjuvstarten (høyst én per TELLE_MS, så et dobbelttrykk teller én gang).
   const [straff, setStraff] = useState(false);
   const straffTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const sistTalt = useRef(0);
   useEffect(() => () => clearTimeout(straffTimer.current), []);
   function trykk() {
-    if (stengt || straff) {
-      navigator.vibrate?.([30, 50, 30]);
-      setStraff(true);
-      clearTimeout(straffTimer.current);
-      straffTimer.current = setTimeout(() => setStraff(false), STRAFF_MS);
-    } else {
-      onTrykk();
+    if (åpen && !straff) return onTrykk(false);
+    navigator.vibrate?.([30, 50, 30]);
+    setStraff(true);
+    clearTimeout(straffTimer.current);
+    straffTimer.current = setTimeout(() => setStraff(false), STRAFF_MS);
+    if (stengt && Date.now() - sistTalt.current >= TELLE_MS) {
+      sistTalt.current = Date.now();
+      onTrykk(true);
     }
   }
   const sperret = stengt || straff;
+  const tjuvstartere = tilstand.buzz_false_starts ?? [];
+  const feilSvar = (tilstand.buzz_out ?? []).filter((n) => !tjuvstartere.includes(n));
 
   const rund = "flex aspect-square w-full max-w-xs flex-col items-center justify-center gap-2 rounded-full p-8 text-center";
 
@@ -291,6 +307,12 @@ function Buzzer({
           <span className="text-5xl">✓</span>
           <span className="text-2xl font-bold">Delvis riktig</span>
           <span>Dere fikk {mineFelt.map((i) => parts[i]?.label).join(" og ")}. De andre kan ta resten.</span>
+        </div>
+      ) : mitt === "false_start" ? (
+        <div className={`${rund} bg-zinc-200 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400`}>
+          <span className="text-5xl">🚫</span>
+          <span className="text-2xl font-bold">Tjuvstart</span>
+          <span>Dere trykket for tidlig for mange ganger og er ute av dette spørsmålet</span>
         </div>
       ) : mitt === "wrong" ? (
         <div className={`${rund} bg-zinc-200 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400`}>
@@ -334,13 +356,14 @@ function Buzzer({
       <div className="flex min-h-12 flex-col items-center gap-1 text-center text-sm text-zinc-500">
         {feil && <p className="font-semibold text-red-600">{feil}</p>}
         {tilstand.status === "question" && scored.length > 0 && <p>✓ {buzzPoengTekst(scored, parts)}</p>}
-        {tilstand.status === "question" && !!tilstand.buzz_out?.length && (
-          <p>✗ Svarte feil: {tilstand.buzz_out.join(", ")}</p>
+        {tilstand.status === "question" && feilSvar.length > 0 && <p>✗ Svarte feil: {feilSvar.join(", ")}</p>}
+        {tilstand.status === "question" && tjuvstartere.length > 0 && (
+          <p>🚫 Tjuvstart: {tjuvstartere.join(", ")}</p>
         )}
-        {straff ? (
+        {feil ? null : straff ? (
           <p className="font-semibold text-red-600">For tidlig! Buzzeren er sperret et øyeblikk.</p>
         ) : stengt ? (
-          <p>Buzzeren åpner når musikken starter. Trykk for tidlig, og dere blir sperret litt.</p>
+          <p>Buzzeren åpner når musikken starter. Trykker dere for tidlig {TJUVSTARTER} ganger, er dere ute.</p>
         ) : (
           åpen && <p>Først til å trykke får svare høyt.</p>
         )}

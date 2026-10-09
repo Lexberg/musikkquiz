@@ -93,9 +93,10 @@ export default async function SpillPage({ params }: PageProps<"/quizer/[quizId]/
   // Buzzer: laget som svarer nå, og lagene som har svart feil.
   const lagNavn = (id: string) => alleLag.find((l) => l.id === id)?.name ?? "Ukjent lag";
   const svarer = buzzes?.find((b) => b.result === null) ?? null;
-  const ute = (buzzes ?? []).filter((b) => b.result === "wrong");
+  const ute = (buzzes ?? []).filter((b) => b.result === "wrong" && !b.false_start);
+  const tjuvstart = (buzzes ?? []).filter((b) => b.false_start);
   const sisteDom = (buzzes ?? [])
-    .filter((b) => b.result !== null)
+    .filter((b) => b.result !== null && !b.false_start)
     .sort((a, b) => (b.judged_at ?? b.buzzed_at).localeCompare(a.judged_at ?? a.buzzed_at))[0];
   const visteRader = buzzer ? lagRader.filter((r) => r.svar) : lagRader;
   // Buzzer med flere svarfelt: hvilket lag som har tatt hvert svarfelt, og hva som gjenstår.
@@ -305,6 +306,11 @@ export default async function SpillPage({ params }: PageProps<"/quizer/[quizId]/
               {ute.length > 0 && (
                 <p className="text-sm text-zinc-500">
                   ✗ Svarte feil: {ute.map((b) => lagNavn(b.team_id)).join(", ")}
+                </p>
+              )}
+              {tjuvstart.length > 0 && (
+                <p className="text-sm text-zinc-500">
+                  🚫 Ute etter tjuvstart: {tjuvstart.map((b) => lagNavn(b.team_id)).join(", ")}
                 </p>
               )}
               {spill.status === "locked" && visteRader.length === 0 && !svarer && (

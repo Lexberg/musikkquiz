@@ -86,6 +86,8 @@ export type Buzz = {
   parts_correct: number[] | null;
   buzzed_at: string;
   judged_at: string | null;
+  /** Ute på grunn av tjuvstart (result = «wrong»). Kan ikke angres. */
+  false_start: boolean;
 };
 
 export type BuzzPoeng = { name: string; parts: number[] };
@@ -98,8 +100,10 @@ export type Buzzerstatus = {
   buzz_holder?: string | null;
   /** Lagene som har fått poeng, og svarfeltene (0-basert) de fikk. */
   buzz_scored?: BuzzPoeng[];
-  /** Lag som svarte feil og er ute av spørsmålet. */
+  /** Lag som svarte feil og er ute av spørsmålet (også de med tjuvstart). */
   buzz_out?: string[];
+  /** Lag som er ute av spørsmålet fordi de trykket for tidlig for mange ganger. */
+  buzz_false_starts?: string[];
 };
 
 /** Det deltakerne får fra game_state(). Inneholder aldri fasit eller låt. */
@@ -116,7 +120,7 @@ export type Deltakertilstand = Buzzerstatus & {
   parts?: { label: string; choices?: string[] }[];
   image_url?: string | null;
   /** Lagets egen buzzer-status: «holding» = svarer nå. */
-  my_buzz?: "holding" | "correct" | "partial" | "wrong" | null;
+  my_buzz?: "holding" | "correct" | "partial" | "wrong" | "false_start" | null;
   my_answer?: string[] | null;
   answered?: number;
   teams?: number;
